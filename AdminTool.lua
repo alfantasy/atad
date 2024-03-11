@@ -18,6 +18,23 @@ u8 = encoding.UTF8 -- объявление кодировки U8 как рабочую, но в форме переменной
 local tag = "{00BFFF} [AT] {FFFFFF}" -- локальная переменная, которая регистрирует тэг AT
 -- ## Блок текстовых переменных ## --
 
+local urls = {
+	['main'] = "https://raw.githubusercontent.com/alfantasy/atad/main/AdminTool.lua",
+	['libsfor'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/libsfor.lua',
+	['report'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/QuestionAnswer.lua',
+	['upat'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/upat.ini'
+}
+
+local paths = {
+	['main'] = getWorkingDirectory() .. '/AdminTool.lua',
+	['libsfor'] = getWorkingDirectory() .. '/lib/libsfor.lua',
+	['report'] = getWorkingDirectory() .. '/QuestionAnswer.lua',
+	['upat'] = getWorkingDirectory() .. '/upat.ini'
+}
+
+local version_control = 1
+local version_text = '1.0'
+
 -- ## Система конфига и переменных VARIABLE ## --
 local new = imgui.new
 
@@ -162,6 +179,41 @@ function main()
         sampAddChatMessage(tag .. 'AdminTool успешно инициализирован. Активация: /tool', -1)
         sampAddChatMessage(tag .. "Отказ в подгрузке уведомлений", -1)
     end
+
+	downloadUrlToFile(urls['upat'], paths['upat'],function(id, status)
+		updateIni = inicfg.load(nil, paths['upat'])
+		if status = dlstatus.STATUS_ENDDOWNLOADDATA then  
+			if tonumber(updateIni.info.version) > version_control then  
+				if toast_ok then  
+					toast.Show(u8'Доступно обновление.\nAT начинает обновление автоматически.')
+				else 
+					sampAddChatMessage(tag .. 'Отказ в подгрузке уведомлений.', -1)
+					sampAddChatMessage(tag .. 'Доступно обновление. AT начинает автообновление!')
+				end 
+				lua_thread.create(function()
+					downloadUrlToFile(urls['libsfor'], paths['libsfor'], function(id, status)
+						if status == dlstatus.STATUS_ENDDOWNLOADDATA then  
+							sampAddChatMessage(tag .. "Библиотека, требуемая АТ, обновлена.")
+						end  
+					end)
+					wait(500)
+					downloadUrlToFile(urls['report'], paths['report'], function(id, status)
+						if status == dlstatus.STATUS_ENDDOWNLOADDATA then  
+							sampAddChatMessage(tag .. 'Скрипт для ответов на репорты обновлен.')
+						end 
+					end)
+					wait(500)
+					downloadUrlToFile(urls['main'], paths['main'], function(id, status)
+						if status == dlstatus.STATUS_ENDDOWNLOADDATA then  
+							sampAddChatMessage(tag .. 'Основной скрипт АТ обновлен.')
+						end  
+					end)
+					sampAddChatMessage(tag .. 'Весь пакет скриптов АТ успешно обновлен. Производится перезагрузка скриптов')
+					reloadScripts()
+				end) 
+			end  
+		end
+	end)
 
     load_recon = lua_thread.create_suspended(loadRecon)
 
