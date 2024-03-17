@@ -56,7 +56,7 @@ function downloadFile(url, path)
 	end
 end
 
-local version_control = 2
+local version_control = 1
 local version_text = '1.0'
 -- ## Контролирование версий AT. Скачивание, ссылки и директории. ## --
 
@@ -209,30 +209,37 @@ function main()
 	if response_update_check then 
 		updateIni = inicfg.load(nil, paths['upat'])
 		if tonumber(updateIni.info.version) > version_control then  
-			if toast_ok then  
-				toast.Show(u8'Доступно обновление.\nAT начинает обновление автоматически.', toast.TYPE.INFO, 5)
-			else 
-				print(tag .. 'Отказ в подгрузке уведомлений.')
-				sampAddChatMessage(tag .. 'Доступно обновление. AT начинает автообновление!')
-			end 
-			local response_main = downloadFile(urls['main'], paths['main'])
-			if response_main then  
-				sampAddChatMessage(tag .. 'Основной скрипт АТ скачен.')
-			end  
-			local response_lib = downloadFile(urls['libsfor'], paths['libsfor'])
-			if response_lib then  
-				sampAddChatMessage(tag .. 'Библиотека к АТ успешно скачена.')
-			end  
-			local response_questans = downloadFile(urls['report'], paths['report'])
-			if response_questans then  
-				sampAddChatMessage(tag .. 'Скрипт для репортов скачен.')
-			end  
-			local response_clogger = downloadFile(urls['clogger'], paths['clogger'])
-			if response_clogger then  
-				sampAddChatMessage(tag .. 'Чат-логгер скачен')
-			end
-			sampAddChatMessage(tag .. 'Начинаю перезагрузку скриптов!')
-			reloadScripts()
+			lua_thread.create(function()
+				if toast_ok then  
+					toast.Show(u8'Доступно обновление.\nAT начинает обновление автоматически.', toast.TYPE.INFO, 5)
+				else 
+					print(tag .. 'Отказ в подгрузке уведомлений.')
+					sampAddChatMessage(tag .. 'Доступно обновление. AT начинает автообновление!')
+				end 
+				wait(500)
+				local response_main = downloadFile(urls['main'], paths['main'])
+				if response_main then  
+					sampAddChatMessage(tag .. 'Основной скрипт АТ скачен.')
+				end  
+				wait(500)
+				local response_lib = downloadFile(urls['libsfor'], paths['libsfor'])
+				if response_lib then  
+					sampAddChatMessage(tag .. 'Библиотека к АТ успешно скачена.')
+				end  
+				wait(500)
+				local response_questans = downloadFile(urls['report'], paths['report'])
+				if response_questans then  
+					sampAddChatMessage(tag .. 'Скрипт для репортов скачен.')
+				end  
+				wait(500)
+				local response_clogger = downloadFile(urls['clogger'], paths['clogger'])
+				if response_clogger then  
+					sampAddChatMessage(tag .. 'Чат-логгер скачен')
+				end
+				sampAddChatMessage(tag .. 'Начинаю перезагрузку скриптов!')
+				wait(500)
+				reloadScripts()
+			end)
 		else 
 			if toast_ok then  
 				toast.Show(u8'У Вас установлена актуальная версия АТ.\nВерсия AT: ' .. version_text, toast.TYPE.INFO, 5)
@@ -241,7 +248,7 @@ function main()
 				sampAddChatMessage(tag .. 'У Вас установлена актуальная версия АТ. Версия АТ: ' .. version_text, -1)
 			end
 		end  
-		os.remove(paths['upat'])
+		--os.remove(paths['upat'])
 	end
 
     load_recon = lua_thread.create_suspended(loadRecon)
