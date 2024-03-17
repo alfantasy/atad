@@ -56,7 +56,7 @@ function downloadFile(url, path)
 	end
 end
 
-local version_control = 2
+local version_control = 1
 local version_text = '1.0'
 -- ## Контролирование версий AT. Скачивание, ссылки и директории. ## --
 

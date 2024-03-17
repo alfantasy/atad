@@ -1,7 +1,7 @@
 local encoding = require 'encoding' -- регистрация кодирования 
 u8 = encoding.UTF8 -- определение стандартной кодировки
 encoding.default = 'CP1251' -- изменение кодировки на Cyrillic
-
+-- проверка
 local functions = {} -- блок экспортируемых функций
 
 local russian_characters = {
