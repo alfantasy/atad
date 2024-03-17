@@ -43,7 +43,7 @@ function downloadFile(url, path)
 	local _, status_code, _ = http.request{
 	  url = url,
 	  method = "GET",
-	  sink = ltn12.sink.file(io.open(path, "w")),
+	  sink = ltn12.sink.file(io.open(path, "wb")),
 	  headers = {
 		["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0;Win64) AppleWebkit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.82 Safari/537.36",
   
