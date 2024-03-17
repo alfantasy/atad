@@ -26,6 +26,8 @@ imgui.OnInitialize(function()
 end)
 -- ## Работа с mimgui ## -- 
 
+local version = 1
+
 -- ## Работа с конфигами и переменными ## --
 
 local elements = {

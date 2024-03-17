@@ -18,6 +18,8 @@ local tag = "{00BFFF} [AT] {FFFFFF}" -- локальная переменная, которая регистриру
 -- ## mimgui ## --
 local new = imgui.new
 
+EXPORTS = {}
+
 function Tooltip(text)
     if imgui.IsItemHovered() then
         imgui.BeginTooltip()
@@ -28,7 +30,7 @@ end
 
 imgui.OnInitialize(function()   
     imgui.GetIO().IniFilename = nil
-    fa.Init()
+    fa.Init(20)
 end)
 
 local sw, sh = getScreenResolution()
@@ -49,6 +51,7 @@ inicfg.save(config, directIni)
 
 function save()  
     inicfg.save(config, directIni)
+    return true
 end
 
 local elements = {
@@ -296,6 +299,66 @@ local ReportsAT = imgui.OnFrame(
                 if imgui.Button(fa.TEXT_HEIGHT .. ("##SendColor")) then  
                     imgui.StrCopy(elements.answer, color())
                 end; Tooltip("Ставит рандомный цвет перед ответом.")
+                if #ffi.string(elements.answer) > 0 then  
+                    imgui.SameLine()
+                    if imgui.Button(fa.DOWNLOAD .. ('##SaveReport')) then  
+                        imgui.StrCopy(elements.binder_text, ffi.string(elements.answer))
+                        imgui.OpenPopup('BinderReport')
+                    end 
+                end
+                if imgui.BeginPopupModal('BinderReport', false, imgui.WindowFlags.NoResize + imgui.WindowFlags.AlwaysAutoResize) then
+                    imgui.BeginChild("##EditBinder", imgui.ImVec2(600, 225), true)
+                    imgui.Text(u8'Название бинда:'); imgui.SameLine()
+                    imgui.PushItemWidth(130)
+                    imgui.InputText("##elements.binder_name", elements.binder_name, ffi.sizeof(elements.binder_name))
+                    imgui.PopItemWidth()
+                    imgui.PushItemWidth(100)
+                    imgui.Separator()
+                    imgui.Text(u8'Текст бинда:')
+                    imgui.PushItemWidth(300)
+                    imgui.InputTextMultiline("##elements.binder_text", elements.binder_text, ffi.sizeof(elements.binder_text), imgui.ImVec2(-1, 110))
+                    imgui.PopItemWidth()
+        
+                    imgui.SetCursorPosX((imgui.GetWindowWidth() - 100) / 100)
+                    if imgui.Button(u8'Закрыть##bind1', imgui.ImVec2(100,30)) then
+                        imgui.StrCopy(elements.binder_name, '')
+                        imgui.StrCopy(elements.binder_text, '')
+                        imgui.CloseCurrentPopup()
+                    end
+                    imgui.SameLine()
+                    if #ffi.string(elements.binder_name) > 0 and #ffi.string(elements.binder_text) > 0 then
+                        imgui.SetCursorPosX((imgui.GetWindowWidth() - 100) / 1.01)
+                        if imgui.Button(u8'Сохранить##bind1', imgui.ImVec2(100,30)) then
+                            if not EditOldBind then
+                                local refresh_text = ffi.string(elements.binder_text):gsub("\n", "~")
+                                table.insert(config.bind_name, ffi.string(elements.binder_name))
+                                table.insert(config.bind_text, refresh_text)
+                                if save() then
+                                    sampAddChatMessage(tag .. 'Бинд"' ..u8:decode(ffi.string(elements.binder_name)).. '" успешно создан!', -1)
+                                    imgui.StrCopy(elements.binder_name, '')
+                                    imgui.StrCopy(elements.binder_text, '')
+                                    imgui.CloseCurrentPopup()
+                                end
+                            else
+                                local refresh_text = ffi.string(elements.binder_text):gsub("\n", "~")
+                                table.insert(config.bind_name, getpos, ffi.string(elements.binder_name))
+                                table.insert(config.bind_text, getpos, refresh_text)
+                                table.remove(config.bind_name, getpos + 1)
+                                table.remove(config.bind_text, getpos + 1)
+                                if save() then
+                                    sampAddChatMessage(tag .. 'Бинд"' ..u8:decode(ffi.string(elements.binder_name)).. '" успешно отредактирован!', -1)
+                                    imgui.StrCopy(elements.binder_name, '')
+                                    imgui.StrCopy(elements.binder_text, '')
+                                end
+                                EditOldBind = false
+                                imgui.CloseCurrentPopup()
+                            end
+                        end
+        
+                    end
+                    imgui.EndChild()
+                    imgui.EndPopup()
+                end
                 imgui.Separator()
                 if imgui.Button(fa.EYE .. u8" Работа по жб") then  
                     lua_thread.create(function()
@@ -441,7 +504,6 @@ local ReportsAT = imgui.OnFrame(
                     end)
                 end
             end  
-
             if elements.select_menu == 1 then  
                 imgui.BeginChild("##menuSecond", imgui.ImVec2(250, 275), true)
                 if imgui.Button(fa.OBJECT_GROUP .. u8" На кого-то/что-то") then  -- reporton key
@@ -810,7 +872,7 @@ local ReportsAT = imgui.OnFrame(
                         end  
                     end 
                 else 
-                    imgui.Text(u8"Здесь пусто! :[")
+                    imgui.Text(u8"Здесь пусто! :(")
                     if imgui.Button(u8"Создать бинд") then  
                         imgui.OpenPopup('BinderReport')
                     end  
@@ -819,13 +881,13 @@ local ReportsAT = imgui.OnFrame(
                     imgui.BeginChild("##EditBinder", imgui.ImVec2(600, 225), true)
                     imgui.Text(u8'Название бинда:'); imgui.SameLine()
                     imgui.PushItemWidth(130)
-                    imgui.InputText("##elements.binder_name", elements.binder_name)
+                    imgui.InputText("##elements.binder_name", elements.binder_name, ffi.sizeof(elements.binder_name))
                     imgui.PopItemWidth()
                     imgui.PushItemWidth(100)
                     imgui.Separator()
                     imgui.Text(u8'Текст бинда:')
                     imgui.PushItemWidth(300)
-                    imgui.InputTextMultiline("##elements.binder_text", elements.binder_text, imgui.ImVec2(-1, 110))
+                    imgui.InputTextMultiline("##elements.binder_text", elements.binder_text, ffi.sizeof(elements.binder_text), imgui.ImVec2(-1, 110))
                     imgui.PopItemWidth()
         
                     imgui.SetCursorPosX((imgui.GetWindowWidth() - 100) / 100)
@@ -847,12 +909,13 @@ local ReportsAT = imgui.OnFrame(
                                     imgui.StrCopy(elements.binder_name, '')
                                     imgui.StrCopy(elements.binder_text, '')
                                     imgui.CloseCurrentPopup()
-                                else
-                                    local refresh_text = ffi.string(elements.binder_text):gsub("\n", "~")
-                                    table.insert(config.bind_name, getpos, ffi.string(elements.binder_name))
-                                    table.insert(config.bind_text, getpos, refresh_text)
-                                    table.remove(config.bind_name, getpos + 1)
-                                    table.remove(config.bind_text, getpos + 1)
+                                end
+                            else
+                                local refresh_text = ffi.string(elements.binder_text):gsub("\n", "~")
+                                table.insert(config.bind_name, getpos, ffi.string(elements.binder_name))
+                                table.insert(config.bind_text, getpos, refresh_text)
+                                table.remove(config.bind_name, getpos + 1)
+                                table.remove(config.bind_text, getpos + 1)
                                 if save() then
                                     sampAddChatMessage(tag .. 'Бинд"' ..u8:decode(ffi.string(elements.binder_name)).. '" успешно отредактирован!', -1)
                                     imgui.StrCopy(elements.binder_name, '')
@@ -1010,4 +1073,74 @@ function SendBindReport(value)
             value = -1
         end
     end)
+end
+
+function EXPORTS.BinderEdit()
+    imgui.BeginChild('##ListBinders', imgui.ImVec2(300, 540), true)
+        if #config.bind_name > 0 then  
+            for key, name in pairs(config.bind_name) do 
+                if imgui.Button(name.. '##' ..key) then  
+                    EditOldBind = true  
+                    getpos = key  
+                    local returnwrapped = tostring(config.bind_text[key]):gsub('~', '\n')
+                    imgui.StrCopy(elements.binder_text, returnwrapped)
+                    imgui.StrCopy(elements.binder_name, tostring(config.bind_name[key]))
+                end
+                imgui.SameLine()
+                if imgui.Button(fa.TRASH.. "##"..key) then  
+                    sampAddChatMessage(tag .. 'Бинд "' ..u8:decode(config.bind_name[key]) .. '" удален!', -1)
+                    table.remove(config.bind_name, key)
+                    table.remove(config.bind_text, key) 
+                    inicfg.save(config, directIni)
+                end  
+            end 
+        end 
+    imgui.EndChild()
+    imgui.SameLine()
+    imgui.BeginChild("##EditBinder", imgui.ImVec2(680, 540), true)
+        imgui.Text(u8'Название бинда:'); imgui.SameLine()
+        imgui.PushItemWidth(130)
+        imgui.InputText("##elements.binder_name", elements.binder_name, ffi.sizeof(elements.binder_name))
+        imgui.PopItemWidth()
+        imgui.PushItemWidth(100)
+        imgui.Separator()
+        imgui.Text(u8'Текст бинда:')
+        imgui.PushItemWidth(300)
+        imgui.InputTextMultiline("##elements.binder_text", elements.binder_text, ffi.sizeof(elements.binder_text), imgui.ImVec2(-1, 110))
+        imgui.PopItemWidth()
+
+        imgui.SetCursorPosX((imgui.GetWindowWidth() - 100) / 100)
+        if imgui.Button(u8'Закрыть##bind1', imgui.ImVec2(100,30)) then
+            imgui.StrCopy(elements.binder_name, '')
+            imgui.StrCopy(elements.binder_text, '')
+        end
+        imgui.SameLine()
+        if #ffi.string(elements.binder_name) > 0 and #ffi.string(elements.binder_text) > 0 then
+            imgui.SetCursorPosX((imgui.GetWindowWidth() - 100) / 1.01)
+            if imgui.Button(u8'Сохранить##bind1', imgui.ImVec2(100,30)) then
+                if not EditOldBind then
+                    local refresh_text = ffi.string(elements.binder_text):gsub("\n", "~")
+                    table.insert(config.bind_name, ffi.string(elements.binder_name))
+                    table.insert(config.bind_text, refresh_text)
+                    if save() then
+                        sampAddChatMessage(tag .. 'Бинд"' ..u8:decode(ffi.string(elements.binder_name)).. '" успешно создан!', -1)
+                        imgui.StrCopy(elements.binder_name, '')
+                        imgui.StrCopy(elements.binder_text, '')
+                    end
+                else
+                    local refresh_text = ffi.string(elements.binder_text):gsub("\n", "~")
+                    table.insert(config.bind_name, getpos, ffi.string(elements.binder_name))
+                    table.insert(config.bind_text, getpos, refresh_text)
+                    table.remove(config.bind_name, getpos + 1)
+                    table.remove(config.bind_text, getpos + 1)
+                    if save() then
+                        sampAddChatMessage(tag .. 'Бинд"' ..u8:decode(ffi.string(elements.binder_name)).. '" успешно отредактирован!', -1)
+                        imgui.StrCopy(elements.binder_name, '')
+                        imgui.StrCopy(elements.binder_text, '')
+                    end
+                    EditOldBind = false
+                end
+            end
+        end
+    imgui.EndChild()
 end

@@ -9,8 +9,11 @@ local fa = require 'fAwesome6_solid' -- работа с иконами на основе FontAwesome 6
 local inicfg = require 'inicfg' -- работа с конфигом
 local memory = require 'memory' -- работа с памятью напрямую
 local ffi = require 'ffi' -- глобальная работа с переменными игры
-local atlibs = require 'libsfor'
+local http = require('socket.http') -- работа с запросами HTTP
+local ltn12 = require('ltn12') -- работа с файловой системой
+local atlibs = require 'libsfor' -- инициализация библиотеки InfoSecurity для AT (libsfor)
 local toast_ok, toast = pcall(import, 'lib/mimtoasts.lua') -- интеграция уведомлений.
+local question_ok, QuestionAnswer = pcall(import, 'QuestionAnswer.lua') -- одновременная интеграция редакции файлов
 encoding.default = 'CP1251' -- смена кодировки на CP1251
 u8 = encoding.UTF8 -- объявление кодировки U8 как рабочую, но в форме переменной (для интерфейса)
 
@@ -18,6 +21,7 @@ u8 = encoding.UTF8 -- объявление кодировки U8 как рабочую, но в форме переменной
 local tag = "{00BFFF} [AT] {FFFFFF}" -- локальная переменная, которая регистрирует тэг AT
 -- ## Блок текстовых переменных ## --
 
+-- ## Контролирование версий AT. Скачивание, ссылки и директории. ## --
 local urls = {
 	['main'] = "https://raw.githubusercontent.com/alfantasy/atad/main/AdminTool.lua",
 	['libsfor'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/libsfor.lua',
@@ -32,8 +36,27 @@ local paths = {
 	['upat'] = getWorkingDirectory() .. '/upat.ini'
 }
 
+function downloadFile(url, path)
+	local response = {}
+	local _, status_code, _ = http.request{
+	  url = url,
+	  method = "GET",
+	  sink = ltn12.sink.file(io.open(path, "w")),
+	  headers = {
+		["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0;Win64) AppleWebkit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.82 Safari/537.36",
+  
+	  },
+	}
+	if status_code == 200 then
+		return true
+	else
+		return false
+	end
+end
+
 local version_control = 1
 local version_text = '1.0'
+-- ## Контролирование версий AT. Скачивание, ссылки и директории. ## --
 
 -- ## Система конфига и переменных VARIABLE ## --
 local new = imgui.new
@@ -99,7 +122,7 @@ end
 
 imgui.OnInitialize(function()   
     imgui.GetIO().IniFilename = nil
-    fa.Init()
+    fa.Init(20)
 end)
 
 local sw, sh = getScreenResolution()
@@ -177,43 +200,43 @@ function main()
         toast.Show(u8"AdminTool инициализирован.\nДля работы с интерфейсом, введите: /tool", toast.TYPE.INFO, 5)
     else 
         sampAddChatMessage(tag .. 'AdminTool успешно инициализирован. Активация: /tool', -1)
-        sampAddChatMessage(tag .. "Отказ в подгрузке уведомлений", -1)
+        print(tag .. "Отказ в подгрузке уведомлений")
     end
 
-	downloadUrlToFile(urls['upat'], paths['upat'],function(id, status)
+	local response_update_check = downloadFile(urls['upat'], paths['upat'])
+	if response_update_check then 
 		updateIni = inicfg.load(nil, paths['upat'])
-		if status = dlstatus.STATUS_ENDDOWNLOADDATA then  
-			if tonumber(updateIni.info.version) > version_control then  
-				if toast_ok then  
-					toast.Show(u8'Доступно обновление.\nAT начинает обновление автоматически.')
-				else 
-					sampAddChatMessage(tag .. 'Отказ в подгрузке уведомлений.', -1)
-					sampAddChatMessage(tag .. 'Доступно обновление. AT начинает автообновление!')
-				end 
-				lua_thread.create(function()
-					downloadUrlToFile(urls['libsfor'], paths['libsfor'], function(id, status)
-						if status == dlstatus.STATUS_ENDDOWNLOADDATA then  
-							sampAddChatMessage(tag .. "Библиотека, требуемая АТ, обновлена.")
-						end  
-					end)
-					wait(500)
-					downloadUrlToFile(urls['report'], paths['report'], function(id, status)
-						if status == dlstatus.STATUS_ENDDOWNLOADDATA then  
-							sampAddChatMessage(tag .. 'Скрипт для ответов на репорты обновлен.')
-						end 
-					end)
-					wait(500)
-					downloadUrlToFile(urls['main'], paths['main'], function(id, status)
-						if status == dlstatus.STATUS_ENDDOWNLOADDATA then  
-							sampAddChatMessage(tag .. 'Основной скрипт АТ обновлен.')
-						end  
-					end)
-					sampAddChatMessage(tag .. 'Весь пакет скриптов АТ успешно обновлен. Производится перезагрузка скриптов')
-					reloadScripts()
-				end) 
+		if tonumber(updateIni.info.version) > version_control then  
+			if toast_ok then  
+				toast.Show(u8'Доступно обновление.\nAT начинает обновление автоматически.', toast.TYPE.INFO, 5)
+			else 
+				print(tag .. 'Отказ в подгрузке уведомлений.')
+				sampAddChatMessage(tag .. 'Доступно обновление. AT начинает автообновление!')
+			end 
+			local response_main = downloadFile(urls['main'], paths['main'])
+			if response_main then  
+				sampAddChatMessage(tag .. 'Основной скрипт АТ скачен.')
 			end  
-		end
-	end)
+			local response_lib = downloadFile(urls['libsfor'], paths['libsfor'])
+			if response_lib then  
+				sampAddChatMessage(tag .. 'Библиотека к АТ успешно скачена.')
+			end  
+			local response_questans = downloadFile(urls['report'], paths['report'])
+			if response_questans then  
+				sampAddChatMessage(tag .. 'Скрипт для репортов скачен.')
+			end  
+			sampAddChatMessage(tag .. 'Начинаю перезагрузку скриптов!')
+			reloadScripts()
+		else 
+			if toast_ok then  
+				toast.Show(u8'У Вас установлена актуальная версия АТ.\nВерсия AT: ' .. version_text, toast.TYPE.INFO, 5)
+			else 
+				print(tag .. 'Отказ в подгрузке уведомлений.')
+				sampAddChatMessage(tag .. 'У Вас установлена актуальная версия АТ. Версия АТ: ' .. version_text, -1)
+			end
+		end  
+		os.remove(paths['upat'])
+	end
 
     load_recon = lua_thread.create_suspended(loadRecon)
 
@@ -2204,6 +2227,9 @@ local MainWindowAT = imgui.OnFrame(
 					end
 					imgui.EndTabItem()
 				end 
+				if imgui.BeginTabItem(fa.LIST .. u8" Биндер /ans") then   
+					QuestionAnswer.BinderEdit()
+				end
 			end 
         imgui.End()
     end
