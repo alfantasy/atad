@@ -26,14 +26,16 @@ local urls = {
 	['main'] = "https://raw.githubusercontent.com/alfantasy/atad/main/AdminTool.lua",
 	['libsfor'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/libsfor.lua',
 	['report'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/QuestionAnswer.lua',
-	['upat'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/upat.ini'
+	['upat'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/upat.ini',
+	['clogger'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/clogger.lua'
 }
 
 local paths = {
 	['main'] = getWorkingDirectory() .. '/AdminTool.lua',
 	['libsfor'] = getWorkingDirectory() .. '/lib/libsfor.lua',
 	['report'] = getWorkingDirectory() .. '/QuestionAnswer.lua',
-	['upat'] = getWorkingDirectory() .. '/upat.ini'
+	['upat'] = getWorkingDirectory() .. '/upat.ini',
+	['clogger'] = getWorkingDirectory() .. '/clogger.lua'
 }
 
 function downloadFile(url, path)
@@ -54,7 +56,7 @@ function downloadFile(url, path)
 	end
 end
 
-local version_control = 1
+local version_control = 2
 local version_text = '1.0'
 -- ## Контролирование версий AT. Скачивание, ссылки и директории. ## --
 
@@ -225,6 +227,10 @@ function main()
 			if response_questans then  
 				sampAddChatMessage(tag .. 'Скрипт для репортов скачен.')
 			end  
+			local response_clogger = downloadFile(urls['clogger'], paths['clogger'])
+			if response_clogger then  
+				sampAddChatMessage(tag .. 'Чат-логгер скачен')
+			end
 			sampAddChatMessage(tag .. 'Начинаю перезагрузку скриптов!')
 			reloadScripts()
 		else 

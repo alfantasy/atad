@@ -118,6 +118,11 @@ local RDSWindowMenu = imgui.OnFrame(
                         sc.ActiveScoreBoard()
                     end)
                 end  
+                imgui.SameLine()
+                if imgui.Button('RSc') then  
+                    sampAddChatMessage(tag .. 'Производится перезагрузка скриптов.')
+                    reloadScripts()
+                end
             end
 
         imgui.End()
