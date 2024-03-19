@@ -1,6 +1,7 @@
 require 'lib.moonloader'
 
 local dlstatus = require('moonloader').download_status
+local fflags = require('moonloader').font_flag
 local imgui = require 'mimgui' -- инициализация интерфейса Moon ImGUI
 local encoding = require 'encoding' -- работа с кодировками
 local sampev = require 'lib.samp.events' -- интеграция пакетов SA:MP и происходящих/исходящих/входящих т.д. ивентов
@@ -56,7 +57,7 @@ function downloadFile(url, path)
 	end
 end
 
-local version_control = 1
+local version_control = 2
 local version_text = '1.0'
 -- ## Контролирование версий AT. Скачивание, ссылки и директории. ## --
 
@@ -65,6 +66,7 @@ local new = imgui.new
 
 local directoryAutoMute = getWorkingDirectory() .. '/config/AdminTool/AutoMute'
 local directIni = 'AdminTool/settings.ini'
+local eventsIni = 'AdminTool/events.ini'
 
 local config = inicfg.load({
     settings = {
@@ -75,9 +77,27 @@ local config = inicfg.load({
         automute_osk = false,
         automute_rod = false, 
         automute_upom = false, 
+		auto_online = false,
+		adminforms = false, 
+		autoforms = false,
+		render_date = false,
     },
 }, directIni)
 inicfg.save(config, directIni)
+
+local cfgevents = inicfg.load({
+    bind_name = {},
+    bind_text = {},
+    bind_vdt = {},
+    bind_coords = {},
+}, eventsIni)
+inicfg.save(cfgevents, eventsIni)
+
+function EventsSave()
+	inicfg.save(cfgevents, eventsIni)
+	toast.Show(u8'Сохранение файла INI от ATEvents прошло успешно.', toast.TYPE.OK, 5)
+	return true
+end
 
 function save()
     inicfg.save(config, directIni)
@@ -101,16 +121,39 @@ local elements = {
         input_word = new.char[500](),
     },
     boolean = {
+		adminforms = new.bool(config.settings.adminforms),
+		autoforms = new.bool(config.settings.autoforms),
         recon = new.bool(config.settings.custom_recon),
 		autologin = new.bool(config.settings.autologin),
+		auto_online = new.bool(config.settings.auto_online),
+		render_date = new.bool(config.settings.render_date),
     },
 	buffers = {
 		password = new.char[50](config.settings.password_to_login),
+		name = new.char[126](),
+        rules = new.char[65536](),
+        win_pl = new.char[32](),
+        name = new.char[256](),
+        text = new.char[65536](),
+        vdt = new.char[32](),
+        coord = new.char[32](),
 	},
 }
 
 local show_password = false -- показать/скрыть пароль в интерфейсе
 local control_spawn = false -- контроль спавна. Активируется при запуске скрипта
+
+local access_file = 'AdminTool/accessadm.ini'
+local main_access = inicfg.load({
+	settings = {
+		ban = false,
+		mute = false, 
+		jail = false,
+		makeadmin = false,
+		agivemoney = false,
+	},
+}, access_file)
+inicfg.save(main_access, access_file)
 -- ## Система конфига и переменных VARIABLE ## --
 
 -- ## mimgui ## --
@@ -123,8 +166,10 @@ function Tooltip(text)
 end
 
 imgui.OnInitialize(function()   
-    imgui.GetIO().IniFilename = nil
-    fa.Init(20)
+	local glyph_ranges = imgui.GetIO().Fonts:GetGlyphRangesCyrillic()
+	imgui.GetIO().Fonts:Clear()
+	imgui.GetIO().Fonts:AddFontFromFileTTF(getWorkingDirectory() .. '/lib/mimgui/trebucbd.ttf', 24.0, _, glyph_ranges)
+	fa.Init(24)
 end)
 
 local sw, sh = getScreenResolution()
@@ -158,6 +203,18 @@ local control_onscene_osk = false -- контролирование сцены автомута "Оскорбление
 local control_onscene_upom = false -- контролирование сцены автомута "Упоминание стор.проектов"
 local control_onscene_rod = false -- контролирование сцены автомута "Оскорбление родных"
 -- ## Переменные отвечающие за стримы автомута ## --
+
+local reasons = { 
+	"/mute","/jail","/iban","/ban","/kick","/skick","/sban", "/muteakk", "/offban", "/banakk"
+}
+
+function getMyNick()
+    local result, id = sampGetPlayerIdByCharHandle(playerPed)
+    if result then
+        local nick = sampGetPlayerNickname(id)
+        return nick
+    end
+end
 
 -- ## Функция, позволяющая правильно распределять слова и искать полноценные совпадения ## -- 
 function checkMessage(msg, arg) -- под аргументом воспринимается номер нужного mainstream (от 1 до 4); Где 1 - мат, 2 - оск, 3 - упом.стор.проектов, 4 - оск род
@@ -195,6 +252,124 @@ function checkMessage(msg, arg) -- под аргументом воспринимается номер нужного m
         end  
     end
 end 
+
+function imgui.CenterText(text)
+    imgui.SetCursorPosX(imgui.GetWindowWidth()/2-imgui.CalcTextSize(u8(text)).x/2)
+    imgui.Text(u8(text))
+end
+
+function imgui.TextColoredRGB(text)
+    local style = imgui.GetStyle()
+    local colors = style.Colors
+    local ImVec4 = imgui.ImVec4
+    local explode_argb = function(argb)
+        local a = bit.band(bit.rshift(argb, 24), 0xFF)
+        local r = bit.band(bit.rshift(argb, 16), 0xFF)
+        local g = bit.band(bit.rshift(argb, 8), 0xFF)
+        local b = bit.band(argb, 0xFF)
+        return a, r, g, b
+    end
+    local getcolor = function(color)
+        if color:sub(1, 6):upper() == 'SSSSSS' then
+            local r, g, b = colors[1].x, colors[1].y, colors[1].z
+            local a = tonumber(color:sub(7, 8), 16) or colors[1].w * 255
+            return ImVec4(r, g, b, a / 255)
+        end
+        local color = type(color) == 'string' and tonumber(color, 16) or color
+        if type(color) ~= 'number' then return end
+        local r, g, b, a = explode_argb(color)
+        return imgui.ImVec4(r/255, g/255, b/255, a/255)
+    end
+    local render_text = function(text_)
+        for w in text_:gmatch('[^\r\n]+') do
+            local text, colors_, m = {}, {}, 1
+            w = w:gsub('{(......)}', '{%1FF}')
+            while w:find('{........}') do
+                local n, k = w:find('{........}')
+                local color = getcolor(w:sub(n + 1, k - 1))
+                if color then
+                    text[#text], text[#text + 1] = w:sub(m, n - 1), w:sub(k + 1, #w)
+                    colors_[#colors_ + 1] = color
+                    m = n
+                end
+                w = w:sub(1, n - 1) .. w:sub(k + 1, #w)
+            end
+            if text[0] then
+                for i = 0, #text do
+                    imgui.TextColored(colors_[i] or colors[1], u8(text[i]))
+                    imgui.SameLine(nil, 0)
+                end
+                imgui.NewLine()
+            else imgui.Text(u8(w)) end
+        end
+    end
+    render_text(text)
+end
+
+
+-- function imgui.TextColoredRGB(text)
+--     local style = imgui.GetStyle()
+--     local colors = style.Colors
+--     local col = imgui.Col
+    
+--     local designText = function(text__)
+--         local pos = imgui.GetCursorPos()
+--         if sampGetChatDisplayMode() == 2 then
+--             for i = 1, 1 --[[Степень тени]] do
+--                 imgui.SetCursorPos(imgui.ImVec2(pos.x + i, pos.y))
+--                 imgui.TextColored(imgui.ImVec4(0, 0, 0, 1), text__) -- shadow
+--                 imgui.SetCursorPos(imgui.ImVec2(pos.x - i, pos.y))
+--                 imgui.TextColored(imgui.ImVec4(0, 0, 0, 1), text__) -- shadow
+--                 imgui.SetCursorPos(imgui.ImVec2(pos.x, pos.y + i))
+--                 imgui.TextColored(imgui.ImVec4(0, 0, 0, 1), text__) -- shadow
+--                 imgui.SetCursorPos(imgui.ImVec2(pos.x, pos.y - i))
+--                 imgui.TextColored(imgui.ImVec4(0, 0, 0, 1), text__) -- shadow
+--             end
+--         end
+--         imgui.SetCursorPos(pos)
+--     end
+    
+    
+    
+--     local text = text:gsub('{(%x%x%x%x%x%x)}', '{%1FF}')
+
+--     local color = colors[col.Text]
+--     local start = 1
+--     local a, b = text:find('{........}', start)   
+    
+--     while a do
+--         local t = text:sub(start, a - 1)
+--         if #t > 0 then
+--             designText(t)
+--             imgui.TextColored(color, t)
+--             imgui.SameLine(nil, 0)
+--         end
+
+--         local clr = text:sub(a + 1, b - 1)
+--         if clr:upper() == 'STANDART' then color = colors[col.Text]
+--         else
+--             clr = tonumber(clr, 16)
+--             if clr then
+--                 local r = bit.band(bit.rshift(clr, 24), 0xFF)
+--                 local g = bit.band(bit.rshift(clr, 16), 0xFF)
+--                 local b = bit.band(bit.rshift(clr, 8), 0xFF)
+--                 local a = bit.band(clr, 0xFF)
+--                 color = imgui.ImVec4(r / 255, g / 255, b / 255, a / 255)
+--             end
+--         end
+
+--         start = b + 1
+--         a, b = text:find('{........}', start)
+--     end
+--     imgui.NewLine()
+--     if #text >= start then
+--         imgui.SameLine(nil, 0)
+--         designText(text:sub(start))
+--         imgui.TextColored(color, text:sub(start))
+--     end
+-- end
+
+local lc_lvl, lc_adm, lc_color, lc_nick, lc_id, lc_text
 
 function main()
 
@@ -246,6 +421,15 @@ function main()
 	end
 
     load_recon = lua_thread.create_suspended(loadRecon)
+	send_online = lua_thread.create_suspended(drawOnline)
+	draw_date = lua_thread.create_suspended(drawDate)
+	send_online:run()
+	draw_date:run()
+
+	sampRegisterChatCommand('pac', function()
+		sampAddChatMessage(tag .. 'Сканирование доступов. Либо в ручную, либо при AutoLogin', -1)
+		sampSendChat('/access')
+	end)
 
     -- ## Регистрация команд связанные с выдачей мута в онлайне ## --
     sampRegisterChatCommand('fd', cmd_flood)
@@ -387,7 +571,7 @@ function main()
 			wait(200)
 			sampSendDialogResponse(500, 1, 4)
 			wait(200)
-			sampCloseCurrentDialogWithButton(0)
+			sampSendDialogResponse(500, 0, nil)
 		end)
 	end)
 	sampRegisterChatCommand("akill", function(id)
@@ -398,7 +582,7 @@ function main()
 			wait(200)
 			sampSendDialogResponse(48, 1, _, "kill")
 			wait(200)
-			sampCloseCurrentDialogWithButton(0)
+			sampSendDialogResponse(48, 0, nil)
 		end)
 	end)
     -- ## Регистрация вспомогательных команд ## --    
@@ -420,69 +604,69 @@ function main()
 		createDirectory(directoryAutoMute)
 	end  
 
-	local file_read, file_line = io.open(getWorkingDirectory() .. "/config/AdminTool/AutoMute/mat.txt", "r"), -1
-	if file_read ~= nil then  
-		file_read:seek("set", 0)
-		for line in file_read:lines() do  
-			onscene_mat[file_line] = line  
-			file_line = file_line + 1 
-		end  
-		file_read:close()  
-	else
-		file_read, file_line = io.open(directoryAutoMute.."/mat.txt", 'w'), 1
-		for _, v in ipairs(onscene_mat) do  
-			file_read:write(v .. "\n")
-		end 
-		file_read:close()
-	end
+	local file_read_mat, file_line_mat = io.open(directoryAutoMute .. "/mat.txt", "r"), -1
+    if file_read_mat ~= nil then  
+        file_read_mat:seek("set", 0)
+        for line in file_read_mat:lines() do  
+            onscene_mat[file_line_mat] = line  
+            file_line_mat = file_line_mat + 1 
+        end  
+        file_read_mat:close()  
+    else
+        file_read_mat, file_line_mat = io.open(directoryAutoMute.."/mat.txt", 'w'), 1
+        for _, v in ipairs(onscene_mat) do  
+            file_read_mat:write(v .. "\n")
+        end 
+        file_read_mat:close()
+    end
 
-	local file_read, file_line = io.open(directoryAutoMute.."/osk.txt", 'r'), 1
-	if file_read ~= nil then  
-		file_read:seek("set", 0)
-		for line in file_read:lines() do  
-			onscene_osk[file_line] = line  
-			file_line = file_line + 1 
-		end  
-		file_read:close()  
-	else 
-		file_read, file_line = io.open(directoryAutoMute.."/osk.txt", 'w'), 1
-		for _, v in ipairs(onscene_osk) do  
-			file_read:write(v .. "\n")
-		end 
-		file_read:close()
-	end
+    local file_read_osk, file_line_osk = io.open(directoryAutoMute.."/osk.txt", 'r'), 1
+    if file_read_osk ~= nil then  
+        file_read_osk:seek("set", 0)
+        for line in file_read_osk:lines() do  
+            onscene_osk[file_line_osk] = line  
+            file_line_osk = file_line_osk + 1 
+        end  
+        file_read_osk:close()  
+    else 
+        file_read_osk, file_line_osk = io.open(directoryAutoMute.."/osk.txt", 'w'), 1
+        for _, v in ipairs(onscene_osk) do  
+            file_read_osk:write(v .. "\n")
+        end 
+        file_read_osk:close()
+    end
 
-	local file_read, file_line = io.open(directoryAutoMute.."/rod.txt", 'r'), 1
-	if file_read ~= nil then  
-		file_read:seek("set", 0)
-		for line in file_read:lines() do  
-			onscene_rod[file_line] = line  
-			file_line = file_line + 1 
-		end  
-		file_read:close()  
-	else
-		file_read, file_line = io.open(directoryAutoMute.."/rod.txt", 'w'), 1
-		for _, v in ipairs(onscene_rod) do  
-			file_read:write(v .. "\n")
-		end 
-		file_read:close()
-	end
+    local file_read_rod, file_line_rod = io.open(directoryAutoMute.."/rod.txt", 'r'), 1
+    if file_read_rod ~= nil then  
+        file_read_rod:seek("set", 0)
+        for line in file_read_rod:lines() do  
+            onscene_rod[file_line_rod] = line  
+            file_line_rod = file_line_rod + 1 
+        end  
+        file_read_rod:close()  
+    else
+        file_read_rod, file_line_rod = io.open(directoryAutoMute.."/rod.txt", 'w'), 1
+        for _, v in ipairs(onscene_rod) do  
+            file_read_rod:write(v .. "\n")
+        end 
+        file_read_rod:close()
+    end
 
-	local file_read, file_line = io.open(directoryAutoMute.."/upom.txt", 'r'), 1
-	if file_read ~= nil then  
-		file_read:seek("set", 0)
-		for line in file_read:lines() do  
-			onscene_upom[file_line] = line  
-			file_line = file_line + 1 
-		end  
-		file_read:close()  
-	else 
-		file_read, file_line = io.open(directoryAutoMute.."/upom.txt", 'w'), 1
-		for _, v in ipairs(onscene_upom) do  
-			file_read:write(v .. "\n")
-		end 
-		file_read:close()
-	end
+    local file_read_upom, file_line_upom = io.open(directoryAutoMute.."/upom.txt", 'r'), 1
+    if file_read_upom ~= nil then  
+        file_read_upom:seek("set", 0)
+        for line in file_read_upom:lines() do  
+            onscene_upom[file_line_upom] = line  
+            file_line_upom = file_line_upom + 1 
+        end  
+        file_read_upom:close()  
+    else 
+        file_read_upom, file_line_upom = io.open(directoryAutoMute.."/upom.txt", 'w'), 1
+        for _, v in ipairs(onscene_upom) do  
+            file_read_upom:write(v .. "\n")
+        end 
+        file_read_upom:close()
+    end
 
 		-- ## Блок проверки на нахождение нужных файлов в рабочей папке ## --
 
@@ -512,6 +696,7 @@ function main()
 			wait(15000)
 			sampSendChat('/alogin ' .. u8:decode(config.settings.password_to_login))
 			control_spawn = false
+			sampSendChat('/access')
 		end
 
         -- if isKeyJustPressed(VK_RBUTTON) and not sampIsChatInputActive() and not sampIsDialogActive() then
@@ -755,29 +940,36 @@ end
 function cmd_flood(arg)
     if arg:find('(.+) (.+)') then
         arg1, arg2 = arg:match('(.+) (.+)')
-        if arg2 == '1' then
-		    sampSendChat("/mute " .. arg1 .. " 120 " .. " Флуд/Спам ")
-        elseif arg2 == '2' then  
-            sampSendChat("/mute " .. arg1 .. " 240 " .. " Флуд/Спам x2")
-        elseif arg2 == '3' then  
-            sampSendChat("/mute " .. arg1 .. " 360 " .. " Флуд/Спам x3")
-        elseif arg2 == '4' then  
-            sampSendChat("/mute " .. arg1 .. " 480 " .. " Флуд/Спам x4")
-        elseif arg2 == '5' then  
-            sampSendChat("/mute " .. arg1 .. " 600 " .. " Флуд/Спам x5")
-        elseif arg2 == '6' then  
-            sampSendChat("/mute " .. arg1 .. " 720 " .. " Флуд/Спам x6")
-        elseif arg2 == '7' then  
-            sampSendChat("/mute " .. arg1 .. " 840 " .. " Флуд/Спам x7")
-        elseif arg2 == '8' then  
-            sampSendChat("/mute " .. arg1 .. " 960 " .. " Флуд/Спам x8")
-        elseif arg2 == '9' then  
-            sampSendChat("/mute " .. arg1 .. " 1080 " .. " Флуд/Спам x9")
-        elseif arg2 == '10' then  
-            sampSendChat("/mute " .. arg1 .. " 1200 " .. " Флуд/Спам x10")
-        end
+		if main_access.settings.mute then  
+			if arg2 == '1' then
+				sampSendChat("/mute " .. arg1 .. " 120 " .. " Флуд/Спам ")
+			elseif arg2 == '2' then  
+				sampSendChat("/mute " .. arg1 .. " 240 " .. " Флуд/Спам x2")
+			elseif arg2 == '3' then  
+				sampSendChat("/mute " .. arg1 .. " 360 " .. " Флуд/Спам x3")
+			elseif arg2 == '4' then  
+				sampSendChat("/mute " .. arg1 .. " 480 " .. " Флуд/Спам x4")
+			elseif arg2 == '5' then  
+				sampSendChat("/mute " .. arg1 .. " 600 " .. " Флуд/Спам x5")
+			elseif arg2 == '6' then  
+				sampSendChat("/mute " .. arg1 .. " 720 " .. " Флуд/Спам x6")
+			elseif arg2 == '7' then  
+				sampSendChat("/mute " .. arg1 .. " 840 " .. " Флуд/Спам x7")
+			elseif arg2 == '8' then  
+				sampSendChat("/mute " .. arg1 .. " 960 " .. " Флуд/Спам x8")
+			elseif arg2 == '9' then  
+				sampSendChat("/mute " .. arg1 .. " 1080 " .. " Флуд/Спам x9")
+			elseif arg2 == '10' then  
+				sampSendChat("/mute " .. arg1 .. " 1200 " .. " Флуд/Спам x10")
+			end
+		end
 	elseif arg:find('(.+)') then
-        sampSendChat("/mute " .. arg .. " 120 " .. " Флуд/Спам ")
+		if main_access.settings.mute then  
+        	sampSendChat("/mute " .. arg .. " 120 " .. " Флуд/Спам ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /mute ' .. arg .. ' 120 Флуд/Спам')
+		end
     else
         sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
         sampAddChatMessage(tag .. " Используйте: /fd [IDPlayer] [~Множитель (от 2 до 10)]", -1)
@@ -788,29 +980,36 @@ end
 function cmd_popr(arg)
     if arg:find('(.+) (.+)') then
         arg1, arg2 = arg:match('(.+) (.+)')
-        if arg2 == '1' then
-		    sampSendChat("/mute " .. arg1 .. " 120 " .. " Попрошайничество ")
-        elseif arg2 == '2' then  
-            sampSendChat("/mute " .. arg1 .. " 240 " .. " Попрошайничество x2")
-        elseif arg2 == '3' then  
-            sampSendChat("/mute " .. arg1 .. " 360 " .. " Попрошайничество x3")
-        elseif arg2 == '4' then  
-            sampSendChat("/mute " .. arg1 .. " 480 " .. " Попрошайничество x4")
-        elseif arg2 == '5' then  
-            sampSendChat("/mute " .. arg1 .. " 600 " .. " Попрошайничество x5")
-        elseif arg2 == '6' then  
-            sampSendChat("/mute " .. arg1 .. " 720 " .. " Попрошайничество x6")
-        elseif arg2 == '7' then  
-            sampSendChat("/mute " .. arg1 .. " 840 " .. " Попрошайничество x7")
-        elseif arg2 == '8' then  
-            sampSendChat("/mute " .. arg1 .. " 960 " .. " Попрошайничество x8")
-        elseif arg2 == '9' then  
-            sampSendChat("/mute " .. arg1 .. " 1080 " .. " Попрошайничество x9")
-        elseif arg2 == '10' then  
-            sampSendChat("/mute " .. arg1 .. " 1200 " .. " Попрошайничество x10")
-        end
+		if main_access.settings.mute then 
+			if arg2 == '1' then
+				sampSendChat("/mute " .. arg1 .. " 120 " .. " Попрошайничество ")
+			elseif arg2 == '2' then  
+				sampSendChat("/mute " .. arg1 .. " 240 " .. " Попрошайничество x2")
+			elseif arg2 == '3' then  
+				sampSendChat("/mute " .. arg1 .. " 360 " .. " Попрошайничество x3")
+			elseif arg2 == '4' then  
+				sampSendChat("/mute " .. arg1 .. " 480 " .. " Попрошайничество x4")
+			elseif arg2 == '5' then  
+				sampSendChat("/mute " .. arg1 .. " 600 " .. " Попрошайничество x5")
+			elseif arg2 == '6' then  
+				sampSendChat("/mute " .. arg1 .. " 720 " .. " Попрошайничество x6")
+			elseif arg2 == '7' then  
+				sampSendChat("/mute " .. arg1 .. " 840 " .. " Попрошайничество x7")
+			elseif arg2 == '8' then  
+				sampSendChat("/mute " .. arg1 .. " 960 " .. " Попрошайничество x8")
+			elseif arg2 == '9' then  
+				sampSendChat("/mute " .. arg1 .. " 1080 " .. " Попрошайничество x9")
+			elseif arg2 == '10' then  
+				sampSendChat("/mute " .. arg1 .. " 1200 " .. " Попрошайничество x10")
+			end
+		end
 	elseif arg:find('(.+)') then
-        sampSendChat("/mute " .. arg .. " 120 " .. " Попрошайничество ")
+		if main_access.settings.mute then
+        	sampSendChat("/mute " .. arg .. " 120 " .. " Попрошайничество ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /mute ' .. arg .. ' 120 Попрошайничество')
+		end
     else
         sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
         sampAddChatMessage(tag .. " Используйте: /po [IDPlayer] [~Множитель (от 2 до 10)]", -1)
@@ -819,7 +1018,12 @@ end
 
 function cmd_zs(arg)
 	if #arg > 0 then 
-		sampSendChat("/mute " .. arg .. " 600 " .. " Злоуп.символами ")
+		if main_access.settings.mute then  
+			sampSendChat("/mute " .. arg .. " 600 " .. " Злоуп.символами ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /mute ' .. arg .. ' 600 злоуп символами')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -827,7 +1031,12 @@ end
 
 function cmd_m(arg)
 	if #arg > 0 then
-		sampSendChat("/mute " .. arg .. " 300 " .. " Нецензурная лексика. ")
+		if main_access.settings.mute then  
+			sampSendChat("/mute " .. arg .. " 300 " .. " Нецензурная лексика. ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /mute ' .. arg .. ' 300 mat')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -835,7 +1044,12 @@ end
 
 function cmd_ia(arg)
 	if #arg > 0 then
-		sampSendChat("/mute " ..  arg .. " 2500 " .. " Выдача себя за администрацию ")
+		if main_access.settings.mute then  
+			sampSendChat("/mute " ..  arg .. " 2500 " .. " Выдача себя за администрацию ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /mute ' .. arg .. ' 2500 выдача себя за адм')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -843,7 +1057,12 @@ end
 
 function cmd_kl(arg)
 	if #arg > 0 then
-		sampSendChat("/mute " .. arg .. " 3000 " .. " Клевета на администрацию ")
+		if main_access.settings.mute then  
+			sampSendChat("/mute " .. arg .. " 3000 " .. " Клевета на администрацию ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /mute ' .. arg .. ' 3000 kleveta adm')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -851,7 +1070,12 @@ end
 
 function cmd_oa(arg)
 	if #arg > 0 then
-		sampSendChat("/mute " .. arg .. " 2500 " .. " Оск/Униж.администрации  ")
+		if main_access.settings.mute then  
+			sampSendChat("/mute " .. arg .. " 2500 " .. " Оск/Униж.администрации  ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /mute ' .. arg .. ' 2500 osk adm')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -859,7 +1083,12 @@ end
 
 function cmd_ok(arg)
 	if #arg > 0 then
-		sampSendChat("/mute " .. arg .. " 400 " .. " Оскорбление/Унижение. ")
+		if main_access.settings.mute then  
+			sampSendChat("/mute " .. arg .. " 400 " .. " Оскорбление/Унижение. ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /mute ' .. arg .. ' 400 оск')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -867,7 +1096,12 @@ end
 
 function cmd_nm2(arg)
 	if #arg > 0 then
-		sampSendChat("/mute " .. arg .. " 2500 " .. " Неадекватное поведение ")
+		if main_access.settings.mute then  
+			sampSendChat("/mute " .. arg .. " 2500 " .. " Неадекватное поведение ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /mute ' .. arg .. ' 2500 neadekvat')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -875,7 +1109,12 @@ end
 
 function cmd_nm3(arg)
 	if #arg > 0 then
-		sampSendChat("/mute " .. arg .. " 5000 " ..  " Неадекватное поведение ")
+		if main_access.settings.mute then  
+			sampSendChat("/mute " .. arg .. " 5000 " ..  " Неадекватное поведение ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /mute ' .. arg .. ' 5000 neadekvat')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -883,7 +1122,12 @@ end
 
 function cmd_or(arg)
 	if #arg > 0 then
-		sampSendChat("/mute " .. arg .. " 5000 " .. " Оскорбление/Упоминание родных ")
+		if main_access.settings.mute then  
+			sampSendChat("/mute " .. arg .. " 5000 " .. " Оскорбление/Упоминание родных ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /mute ' .. arg .. ' 5000 оск родных')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -891,7 +1135,12 @@ end
 
 function cmd_nm1(arg)
 	if #arg > 0 then
-		sampSendChat("/mute " .. arg .. " 900 " .. " Неадекватное поведение ")
+		if main_access.settings.mute then  
+			sampSendChat("/mute " .. arg .. " 900 " .. " Неадекватное поведение ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /mute ' .. arg .. ' 900 neadekvat')			
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -900,10 +1149,15 @@ end
 function cmd_up(arg)
 	lua_thread.create(function()
 		if #arg > 0 then
-			sampSendChat("/mute " .. arg .. " 1000 " .. " Упоминание сторонних проектов ")
-			wait(1000)
-			sampSendChat("/cc ")
-			sampAddChatMessage(tag .. "Очистка чата связи с выдачей мута.")
+			if main_access.settings.mute then 
+				sampSendChat("/mute " .. arg .. " 1000 " .. " Упоминание сторонних проектов ")
+				wait(1000)
+				sampSendChat("/cc ")
+				sampAddChatMessage(tag .. "Очистка чата связи с выдачей мута.", -1)
+			else 
+				sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+				sampSendChat('/a /mute ' .. arg .. ' 1000 Упом.стор.проектов')
+			end 
 		else 
 			sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 		end
@@ -912,7 +1166,12 @@ end
 
 function cmd_rz(arg)
 	if #arg > 0 then
-		sampSendChat("/mute " .. arg .. " 5000 " .. " Розжиг межнац. розни")
+		if main_access.settings.mute then  
+			sampSendChat("/mute " .. arg .. " 5000 " .. " Розжиг межнац. розни")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /mute ' .. arg .. ' 5000 Розжиг межнац.розни')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -921,7 +1180,12 @@ end
 -- ## Блок функций к выдаче репорт-наказаний мута ## --
 function cmd_rup(arg)
 	if #arg > 0 then
-		sampSendChat("/rmute " .. arg .. " 1000 " .. " Упоминание сторонних проектов. ")
+		if main_access.settings.mute then  
+			sampSendChat("/rmute " .. arg .. " 1000 " .. " Упоминание сторонних проектов. ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /rmute ' .. arg .. ' 1000 Упом.стор.проектов')
+		end 
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -929,7 +1193,12 @@ end
 
 function cmd_ror(arg)
 	if #arg > 0 then
-		sampSendChat("/rmute " .. arg .. " 5000 " .. " Оскорбление/Упоминание родных ")
+		if main_access.settings.mute then  
+			sampSendChat("/rmute " .. arg .. " 5000 " .. " Оскорбление/Упоминание родных ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /rmute ' .. arg .. ' 5000 оск родных')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -938,29 +1207,36 @@ end
 function cmd_cpfd(arg)
     if arg:find('(.+) (.+)') then
         arg1, arg2 = arg:match('(.+) (.+)')
-        if arg2 == '1' then
-		    sampSendChat("/rmute " .. arg1 .. " 120 " .. " caps/offtop ")
-        elseif arg2 == '2' then  
-            sampSendChat("/rmute " .. arg1 .. " 240 " .. " caps/offtop x2")
-        elseif arg2 == '3' then  
-            sampSendChat("/rmute " .. arg1 .. " 360 " .. " caps/offtop x3")
-        elseif arg2 == '4' then  
-            sampSendChat("/rmute " .. arg1 .. " 480 " .. " caps/offtop x4")
-        elseif arg2 == '5' then  
-            sampSendChat("/rmute " .. arg1 .. " 600 " .. " caps/offtop x5")
-        elseif arg2 == '6' then  
-            sampSendChat("/rmute " .. arg1 .. " 720 " .. " caps/offtop x6")
-        elseif arg2 == '7' then  
-            sampSendChat("/rmute " .. arg1 .. " 840 " .. " caps/offtop x7")
-        elseif arg2 == '8' then  
-            sampSendChat("/rmute " .. arg1 .. " 960 " .. " caps/offtop x8")
-        elseif arg2 == '9' then  
-            sampSendChat("/rmute " .. arg1 .. " 1080 " .. " caps/offtop x9")
-        elseif arg2 == '10' then  
-            sampSendChat("/rmute " .. arg1 .. " 1200 " .. " caps/offtop x10")
-        end
+		if main_access.settings.mute then
+			if arg2 == '1' then
+				sampSendChat("/rmute " .. arg1 .. " 120 " .. " caps/offtop ")
+			elseif arg2 == '2' then  
+				sampSendChat("/rmute " .. arg1 .. " 240 " .. " caps/offtop x2")
+			elseif arg2 == '3' then  
+				sampSendChat("/rmute " .. arg1 .. " 360 " .. " caps/offtop x3")
+			elseif arg2 == '4' then  
+				sampSendChat("/rmute " .. arg1 .. " 480 " .. " caps/offtop x4")
+			elseif arg2 == '5' then  
+				sampSendChat("/rmute " .. arg1 .. " 600 " .. " caps/offtop x5")
+			elseif arg2 == '6' then  
+				sampSendChat("/rmute " .. arg1 .. " 720 " .. " caps/offtop x6")
+			elseif arg2 == '7' then  
+				sampSendChat("/rmute " .. arg1 .. " 840 " .. " caps/offtop x7")
+			elseif arg2 == '8' then  
+				sampSendChat("/rmute " .. arg1 .. " 960 " .. " caps/offtop x8")
+			elseif arg2 == '9' then  
+				sampSendChat("/rmute " .. arg1 .. " 1080 " .. " caps/offtop x9")
+			elseif arg2 == '10' then  
+				sampSendChat("/rmute " .. arg1 .. " 1200 " .. " caps/offtop x10")
+			end
+		end
 	elseif arg:find('(.+)') then
-        sampSendChat("/rmute " .. arg .. " 120 " .. " caps/offtop ")
+		if main_access.settings.mute then  
+        	sampSendChat("/rmute " .. arg .. " 120 " .. " caps/offtop ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /rmute ' .. arg .. ' 120 caps/offtop')
+		end 
     else
         sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
         sampAddChatMessage(tag .. " Используйте: /cp [IDPlayer] [~Множитель (от 2 до 10)]", -1)
@@ -970,29 +1246,36 @@ end
 function cmd_report_popr(arg)
     if arg:find('(.+) (.+)') then
         arg1, arg2 = arg:match('(.+) (.+)')
-        if arg2 == '1' then
-		    sampSendChat("/rmute " .. arg1 .. " 120 " .. " Попрошайничество ")
-        elseif arg2 == '2' then  
-            sampSendChat("/rmute " .. arg1 .. " 240 " .. " Попрошайничество x2")
-        elseif arg2 == '3' then  
-            sampSendChat("/rmute " .. arg1 .. " 360 " .. " Попрошайничество x3")
-        elseif arg2 == '4' then  
-            sampSendChat("/rmute " .. arg1 .. " 480 " .. " Попрошайничество x4")
-        elseif arg2 == '5' then  
-            sampSendChat("/rmute " .. arg1 .. " 600 " .. " Попрошайничество x5")
-        elseif arg2 == '6' then  
-            sampSendChat("/rmute " .. arg1 .. " 720 " .. " Попрошайничество x6")
-        elseif arg2 == '7' then  
-            sampSendChat("/rmute " .. arg1 .. " 840 " .. " Попрошайничество x7")
-        elseif arg2 == '8' then  
-            sampSendChat("/rmute " .. arg1 .. " 960 " .. " Попрошайничество x8")
-        elseif arg2 == '9' then  
-            sampSendChat("/rmute " .. arg1 .. " 1080 " .. " Попрошайничество x9")
-        elseif arg2 == '10' then  
-            sampSendChat("/rmute " .. arg1 .. " 1200 " .. " Попрошайничество x10")
-        end
+		if main_access.settings.mute then
+			if arg2 == '1' then
+				sampSendChat("/rmute " .. arg1 .. " 120 " .. " Попрошайничество ")
+			elseif arg2 == '2' then  
+				sampSendChat("/rmute " .. arg1 .. " 240 " .. " Попрошайничество x2")
+			elseif arg2 == '3' then  
+				sampSendChat("/rmute " .. arg1 .. " 360 " .. " Попрошайничество x3")
+			elseif arg2 == '4' then  
+				sampSendChat("/rmute " .. arg1 .. " 480 " .. " Попрошайничество x4")
+			elseif arg2 == '5' then  
+				sampSendChat("/rmute " .. arg1 .. " 600 " .. " Попрошайничество x5")
+			elseif arg2 == '6' then  
+				sampSendChat("/rmute " .. arg1 .. " 720 " .. " Попрошайничество x6")
+			elseif arg2 == '7' then  
+				sampSendChat("/rmute " .. arg1 .. " 840 " .. " Попрошайничество x7")
+			elseif arg2 == '8' then  
+				sampSendChat("/rmute " .. arg1 .. " 960 " .. " Попрошайничество x8")
+			elseif arg2 == '9' then  
+				sampSendChat("/rmute " .. arg1 .. " 1080 " .. " Попрошайничество x9")
+			elseif arg2 == '10' then  
+				sampSendChat("/rmute " .. arg1 .. " 1200 " .. " Попрошайничество x10")
+			end
+		end
 	elseif arg:find('(.+)') then
-        sampSendChat("/rmute " .. arg .. " 120 " .. " Попрошайничество ")
+		if main_access.settings.mute then  
+        	sampSendChat("/rmute " .. arg .. " 120 " .. " Попрошайничество ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /rmute ' .. arg .. ' 120 Попрошайничество')
+		end
     else
         sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
         sampAddChatMessage(tag .. " Используйте: /rpo [IDPlayer] [~Множитель (от 2 до 10)]", -1)
@@ -1001,7 +1284,12 @@ end
 
 function cmd_rm(arg)
 	if #arg > 0 then
-		sampSendChat("/rmute " .. arg .. " 300 " .. " Нецензурная лексика. ")
+		if main_access.settings.mute then  
+			sampSendChat("/rmute " .. arg .. " 300 " .. " Нецензурная лексика. ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /rmute ' .. arg .. ' 300 mat')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1009,7 +1297,12 @@ end
 
 function cmd_roa(arg)
 	if #arg > 0 then
-		sampSendChat("/rmute " .. arg .. " 2500 " .. " Оск/Униж.администрации  ")
+		if main_access.settings.mute then  
+			sampSendChat("/rmute " .. arg .. " 2500 " .. " Оск/Униж.администрации  ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /rmute ' .. arg .. ' 2500 osk adm')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1018,15 +1311,22 @@ end
 function cmd_report_neadekvat(arg)
     if arg:find('(.+) (.+)') then
         arg1, arg2 = arg:match('(.+) (.+)')
-        if arg2 == '2' then
-		    sampSendChat("/rmute " .. arg1 .. " 1800 " .. " Неадекватное поведение x2")
-        elseif arg2 == '3' then  
-            sampSendChat("/rmute " .. arg1 .. " 3000 " .. " Неадекватное поведение x3")
-        elseif arg2 == '1' then  
-            sampSendChat("/rmute " .. arg1 .. " 900 " .. " Неадекватное поведение")
-        end
+		if main_access.settings.mute then  
+			if arg2 == '2' then
+				sampSendChat("/rmute " .. arg1 .. " 1800 " .. " Неадекватное поведение x2")
+			elseif arg2 == '3' then  
+				sampSendChat("/rmute " .. arg1 .. " 3000 " .. " Неадекватное поведение x3")
+			elseif arg2 == '1' then  
+				sampSendChat("/rmute " .. arg1 .. " 900 " .. " Неадекватное поведение")
+			end
+		end
 	elseif arg:find('(.+)') then
-        sampSendChat("/rmute " .. arg .. " 900 " .. " Неадекватное поведение")
+		if main_access.settings.mute then  
+        	sampSendChat("/rmute " .. arg .. " 900 " .. " Неадекватное поведение")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /rmute ' .. arg .. ' 900 neadekvat')
+		end
     else
         sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
         sampAddChatMessage(tag .. " Используйте: /rnm [IDPlayer] [~Множитель (от 2-3)]", -1)
@@ -1035,7 +1335,12 @@ end
 
 function cmd_rok(arg)
 	if #arg > 0 then
-		sampSendChat("/rmute " .. arg .. " 400 " .. " Оскорбление/Унижение. ")
+		if main_access.settings.mute then  
+			sampSendChat("/rmute " .. arg .. " 400 " .. " Оскорбление/Унижение. ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /rmute ' .. arg .. ' 400 osk')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1043,7 +1348,12 @@ end
 
 function cmd_rrz(arg)
 	if #arg > 0 then 
-		sampSendChat("/rmute " .. arg .. " 5000 " .. " Розжиг межнац. розни")
+		if main_access.settings.mute then  
+			sampSendChat("/rmute " .. arg .. " 5000 " .. " Розжиг межнац. розни")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /rmute ' .. arg .. ' 5000 Розжиг межнац.розни')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1162,7 +1472,12 @@ end
 -- ## Блок функций к выдачи наказаний джайла ## -- 
 function cmd_sk(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " .. arg .. " 300 " .. " Spawn Kill")
+		if main_access.settings.jail then 
+			sampSendChat("/jail " .. arg .. " 300 " .. " Spawn Kill")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 300 Spawn Kill')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1171,29 +1486,36 @@ end
 function cmd_dz(arg)
     if arg:find('(.+) (.+)') then
         arg1, arg2 = arg:match('(.+) (.+)')
-        if arg2 == '1' then
-		    sampSendChat("/jail " .. arg1 .. " 300 " .. " DM/DB in zz ")
-        elseif arg2 == '2' then  
-            sampSendChat("/jail " .. arg1 .. " 600 " .. " DM/DB in zz x2")
-        elseif arg2 == '3' then  
-            sampSendChat("/jail " .. arg1 .. " 900 " .. " DM/DB in zz x3")
-        elseif arg2 == '4' then  
-            sampSendChat("/jail " .. arg1 .. " 1200 " .. " DM/DB in zz x4")
-        elseif arg2 == '5' then  
-            sampSendChat("/jail " .. arg1 .. " 1500 " .. " DM/DB in zz x5")
-        elseif arg2 == '6' then  
-            sampSendChat("/jail " .. arg1 .. " 1800 " .. " DM/DB in zz x6")
-        elseif arg2 == '7' then  
-            sampSendChat("/jail " .. arg1 .. " 2100 " .. " DM/DB in zz x7")
-        elseif arg2 == '8' then  
-            sampSendChat("/jail " .. arg1 .. " 2400 " .. " DM/DB in zz x8")
-        elseif arg2 == '9' then  
-            sampSendChat("/jail " .. arg1 .. " 2700 " .. " DM/DB in zz x9")
-        elseif arg2 == '10' then  
-            sampSendChat("/jail " .. arg1 .. " 3000 " .. " DM/DB in zz x10")
-        end
+		if main_access.settings.jail then
+			if arg2 == '1' then
+				sampSendChat("/jail " .. arg1 .. " 300 " .. " DM/DB in zz ")
+			elseif arg2 == '2' then  
+				sampSendChat("/jail " .. arg1 .. " 600 " .. " DM/DB in zz x2")
+			elseif arg2 == '3' then  
+				sampSendChat("/jail " .. arg1 .. " 900 " .. " DM/DB in zz x3")
+			elseif arg2 == '4' then  
+				sampSendChat("/jail " .. arg1 .. " 1200 " .. " DM/DB in zz x4")
+			elseif arg2 == '5' then  
+				sampSendChat("/jail " .. arg1 .. " 1500 " .. " DM/DB in zz x5")
+			elseif arg2 == '6' then  
+				sampSendChat("/jail " .. arg1 .. " 1800 " .. " DM/DB in zz x6")
+			elseif arg2 == '7' then  
+				sampSendChat("/jail " .. arg1 .. " 2100 " .. " DM/DB in zz x7")
+			elseif arg2 == '8' then  
+				sampSendChat("/jail " .. arg1 .. " 2400 " .. " DM/DB in zz x8")
+			elseif arg2 == '9' then  
+				sampSendChat("/jail " .. arg1 .. " 2700 " .. " DM/DB in zz x9")
+			elseif arg2 == '10' then  
+				sampSendChat("/jail " .. arg1 .. " 3000 " .. " DM/DB in zz x10")
+			end
+		end
 	elseif arg:find('(.+)') then
-        sampSendChat("/jail " .. arg .. " 120 " .. " DM/DB in zz ")
+		if main_access.settings.jail then  
+        	sampSendChat("/jail " .. arg .. " 120 " .. " DM/DB in zz ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 120 DM/DB in zz')
+		end
     else
         sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
         sampAddChatMessage(tag .. " Используйте: /dz [IDPlayer] [~Множитель (от 2 до 10)]", -1)
@@ -1202,7 +1524,12 @@ end
 
 function cmd_td(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " .. arg .. " 300 " .. " DB/car in trade ")
+		if main_access.settings.jail then  
+			sampSendChat("/jail " .. arg .. " 300 " .. " DB/car in trade ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 300 DB/car in trade')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1210,7 +1537,12 @@ end
 
 function cmd_jm(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " .. arg .. " 300 " .. " Нарушение правил МП ")
+		if main_access.settings.jail then
+			sampSendChat("/jail " .. arg .. " 300 " .. " Нарушение правил МП ")
+		else
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 300 Нарушение правил МП')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1218,7 +1550,12 @@ end
 
 function cmd_pmx(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " .. arg .. " 300 " .. " Серьезная помеха игрокам ")
+		if main_access.settings.jail then  
+			sampSendChat("/jail " .. arg .. " 300 " .. " Серьезная помеха игрокам ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 300 Помеха игрокам')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1226,7 +1563,12 @@ end
 
 function cmd_skw(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " .. arg .. " 600 " .. " SK in /gw ")
+		if main_access.settings.jail then
+			sampSendChat("/jail " .. arg .. " 600 " .. " SK in /gw ")
+		else
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 600 SK in /gw')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1234,7 +1576,12 @@ end
 
 function cmd_dgw(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " .. arg .. " 500 " .. " Использование наркотиков in /gw ")
+		if main_access.settings.jail then
+			sampSendChat("/jail " .. arg .. " 500 " .. " Использование наркотиков in /gw ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 500 nark in /gw')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1242,7 +1589,12 @@ end
 
 function cmd_ngw(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " .. arg .. " 600 " .. " Использование запрещенных команд in /gw ")
+		if main_access.settings.jail then  
+			sampSendChat("/jail " .. arg .. " 600 " .. " Использование запрещенных команд in /gw ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 600 CMD in /gw')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1250,7 +1602,12 @@ end
 
 function cmd_dbgw(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " .. arg .. " 600 " .. " Использование вертолета in /gw ")
+		if main_access.settings.jail then 
+			sampSendChat("/jail " .. arg .. " 600 " .. " Использование вертолета in /gw ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 120 helicopter /gw')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1258,7 +1615,12 @@ end
 
 function cmd_fsh(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " .. arg .. " 900 " .. " Использование SpeedHack/FlyCar ")
+		if main_access.settings.jail then 
+			sampSendChat("/jail " .. arg .. " 900 " .. " Использование SpeedHack/FlyCar ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 900 SH/FC')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1266,7 +1628,12 @@ end
 
 function cmd_bag(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " .. arg .. " 300 " .. " Игровой багоюз (deagle in car)")
+		if main_access.settings.jail then
+			sampSendChat("/jail " .. arg .. " 300 " .. " Игровой багоюз (deagle in car)")
+		else
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 300 Deagle in car')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1274,7 +1641,12 @@ end
 
 function cmd_pk(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " .. arg .. " 900 " .. " Использование паркур мода ")
+		if main_access.settings.jail then
+			sampSendChat("/jail " .. arg .. " 900 " .. " Использование паркур мода ")
+		else
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 900 Parkour Mode')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1282,7 +1654,12 @@ end
 
 function cmd_jch(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " .. arg .. " 3000 " .. " Использование читерского скрипта/ПО ")
+		if main_access.settings.jail then  
+			sampSendChat("/jail " .. arg .. " 3000 " .. " Использование читерского скрипта/ПО ")
+		else
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 3000 ИЧС/ПО')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1290,7 +1667,12 @@ end
 
 function cmd_zv(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " ..  arg .. " 3000 " .. " Злоупотребление VIP`om ")
+		if main_access.settings.jail then  
+			sampSendChat("/jail " ..  arg .. " 3000 " .. " Злоупотребление VIP`om ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 3000 zloup vip')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1298,7 +1680,12 @@ end
 
 function cmd_sch(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " .. arg .. " 900 " .. " Использование запрещенных скриптов ")
+		if main_access.settings.jail then  
+			sampSendChat("/jail " .. arg .. " 900 " .. " Использование запрещенных скриптов ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 900 ИЗС')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1306,7 +1693,12 @@ end
 
 function cmd_jcw(arg)
 	if #arg > 0 then
-		sampSendChat("/jail " .. arg .. " 900 " .. " Использование ClickWarp/Metla (ИЧС)")
+		if main_access.settings.jail then  
+			sampSendChat("/jail " .. arg .. " 900 " .. " Использование ClickWarp/Metla (ИЧС)")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 900 ClickWarp/Metla')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1314,7 +1706,12 @@ end
 
 function cmd_tdbz(arg)
 	if #arg > 0 then  
-		sampSendChat("/jail " .. arg .. " 900 " .. " ДБ с Ковшом (zz)")
+		if main_access.settings.jail then 
+			sampSendChat("/jail " .. arg .. " 900 " .. " ДБ с Ковшом (zz)")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /jail ' .. arg .. ' 900 DB kovsh (zz)')
+		end
 	else  
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)	
 	end 
@@ -1478,9 +1875,14 @@ end
 -- ## Блок функций к выдачи наказаний бана ## -- 
 function cmd_hl(arg)
 	if #arg > 0 then
-		sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
-		sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
-		sampSendChat("/iban " .. arg .. " 3 " .. " Оскорбление/Унижение/Мат в хелпере")
+		if main_access.settings.ban then
+			sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
+			sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
+			sampSendChat("/iban " .. arg .. " 3 " .. " Оскорбление/Унижение/Мат в хелпере")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /iban ' .. arg .. ' 3 Mat in helper')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)	
 	end
@@ -1488,9 +1890,14 @@ end
 
 function cmd_pl(arg)
 	if #arg > 0 then
-		sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
-		sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
-		sampSendChat("/ban " .. arg .. " 7 " .. " Плагиат ника администратора ")
+		if main_access.settings.ban then
+			sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
+			sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
+			sampSendChat("/ban " .. arg .. " 7 " .. " Плагиат ника администратора ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /ban ' .. arg .. ' 7 Plaguat nick adm')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1498,9 +1905,14 @@ end
 
 function cmd_ob(arg)
 	if #arg > 0 then
-		sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
-		sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
-		sampSendChat("/iban " .. arg .. " 7 " .. " Обход прошлого бана ")
+		if main_access.settings.ban then
+			sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
+			sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
+			sampSendChat("/iban " .. arg .. " 7 " .. " Обход прошлого бана ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /iban ' .. arg .. ' 7 obxod')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1508,9 +1920,14 @@ end
 
 function cmd_gcnk(arg)
 	if #arg > 0 then
-		sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
-		sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
-		sampSendChat("/iban " .. arg .. " 7 " .. " Банда, содержащая нецензурную лексину ")
+		if main_access.settings.ban then 
+			sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
+			sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
+			sampSendChat("/iban " .. arg .. " 7 " .. " Банда, содержащая нецензурную лексину ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /iban ' .. arg .. ' 7 Gang with Mat')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1518,9 +1935,14 @@ end
 
 function cmd_menk(arg)
 	if #arg > 0 then
-		sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
-		sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
-		sampSendChat("/ban " .. arg .. " 7 " .. " Ник, содержающий запрещенные слова ")
+		if main_access.settings.ban then  
+			sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
+			sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
+			sampSendChat("/ban " .. arg .. " 7 " .. " Ник, содержающий запрещенные слова ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /ban ' .. arg .. ' 7 Nick with TabboWords')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1528,11 +1950,16 @@ end
 
 function cmd_ch(arg)
 	if #arg > 0 then
-		lua_thread.create(function()
-		sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
-		sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
-		sampSendChat("/iban " .. arg .. " 7 " .. " Использование читерского скрипта/ПО. ")
-		end)
+		if main_access.settings.ban then
+			lua_thread.create(function()
+			sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
+			sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
+			sampSendChat("/iban " .. arg .. " 7 " .. " Использование читерского скрипта/ПО. ")
+			end)
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /iban ' .. arg .. ' 7 ИЧС/ПО')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1540,9 +1967,14 @@ end
 
 function cmd_nk(arg)
 	if #arg > 0 then
-		sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
-		sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
-		sampSendChat("/ban " .. arg .. " 7 " .. " Ник, содержащий нецензурную лексику ")
+		if main_access.settings.ban then
+			sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
+			sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
+			sampSendChat("/ban " .. arg .. " 7 " .. " Ник, содержащий нецензурную лексику ")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /ban ' .. arg .. ' 7 Nick with Mat')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1550,9 +1982,14 @@ end
 
 function cmd_bnm(arg)
 	if #arg > 0 then
-		sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
-		sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
-		sampSendChat("/iban " .. arg .. " 7 " .. " Неадекватное поведение")
+		if main_access.settings.ban then 
+			sampSendChat("/ans " .. arg .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
+			sampSendChat("/ans " .. arg .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
+			sampSendChat("/iban " .. arg .. " 7 " .. " Неадекватное поведение")
+		else 
+			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
+			sampSendChat('/a /iban ' .. arg .. ' 7 neadekvat')
+		end
 	else 
 		sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
 	end
@@ -1734,15 +2171,44 @@ end
 function cmd_ru(arg)
     lua_thread.create(function()
 	    sampSendChat("/rmute " .. arg .. " 5 " .. "  Mistake/Ошибка")
-        
 	    sampSendChat("/ans " .. arg .. " Извиняемся за ошибку, наказание снято. Приятной игры.")
     end)
 end
 -- ## Блок функций к вспомогательным командам ## --
 
+
+-- ## Автоматическая выдача /online ## --
+function drawOnline()
+    if elements.boolean.auto_online[0] then 
+        while true do 
+			sampAddChatMessage(tag .. "Запуск переменной AutoOnline. Ожидайте выдачи.", -1)
+			wait(62000)
+			sampSendChat("/online")
+			wait(100)
+			local c = math.floor(sampGetPlayerCount(false) / 10)
+			sampSendDialogResponse(1098, 1, c - 1)
+			sampSendDialogResponse(1098, 0, -1)
+			wait(650)
+            wait(1)
+        end	
+    end
+end	
+-- ## Автоматическая выдача /online ## --
+
 -- ## Блок функций для пакетов SA:MP ## --
 function sampev.onServerMessage(color, text)
 	local check_string = string.match(text, "[^%s]+")
+
+	lc_lvl, lc_adm, lc_color, lc_nick, lc_id, lc_text = text:match("%[A%-(%d+)%] %((.+){(.+)}%) (.+)%[(%d+)%]: {FFFFFF}(.+)")
+	--lc_lvl, lc_nick, lc_id, lc_text = text:match("%[A%-(%d+)%](.+)%[(%d+)%]: {FFFFFF}(.+)")
+
+	if text:find("%[A%] Администратор (.+)%[(%d+)%] %(%d+ level%) авторизовался в админ панели") then  
+		nick, _ = text:match("%[A%] Администратор (.+)%[(%d+)%] %(%d+ level%) авторизовался в админ панели")
+		if getMyNick() == nick then  
+			sampAddChatMessage(tag .. 'Начнем тест', -1)
+			sampSendChat('/access')
+		end  
+	end
 
 	if text:find("Вы успешно авторизовались!") then  
 		if elements.boolean.autologin[0] then 
@@ -1763,6 +2229,43 @@ function sampev.onServerMessage(color, text)
 		return true  
 	end 
 
+	function start_forms()
+		sampRegisterChatCommand('fac', function()
+			lua_thread.create(function()
+				sampSendChat('/a AT - Форма принята!')
+				wait(500)
+				sampSendChat(''..adm_form)
+				adm_form = ''
+			end)
+		end)
+		sampRegisterChatCommand('fn', function()
+			sampSendChat('/a AT - Форма отклонена!')
+			adm_form = ''
+		end)
+	end
+
+	if elements.boolean.adminforms[0] and lc_text ~= nil then
+		for k, v in ipairs(reasons) do  
+			if lc_text:match(v) ~= nil then  
+				adm_form = lc_text .. ' // ' .. lc_nick  
+				toast.Show(u8'Пришла форма! \n /fac - принять | /fn - отклонить', toast.TYPE.INFO, 5)
+				sampAddChatMessage(tag .. 'Форма: ' .. adm_form, -1)
+				if elements.boolean.autoforms[0] and not isGamePaused() and not isPauseMenuActive() then  
+					lua_thread.create(function()
+						sampSendChat('/a AT - Форма принята!')
+						wait(500)
+						sampSendChat(''..adm_form)
+						adm_form = ''
+					end) 
+				elseif not isGamePaused() and not isPauseMenuActive() then  
+					start_forms()
+				end 
+			end 
+		end 
+	end 
+	-- ## Работа с формами. Функция находится в полноценном тестировании.
+
+
 	local check_nick, check_id, basic_color, check_text = string.match(text, "(.+)%((.+)%): {(.+)}(.+)") -- захват основной строчки чата и разбития её на объекты
 
     -- ## Автомут, чей mainframe - репорты ## --
@@ -1770,7 +2273,7 @@ function sampev.onServerMessage(color, text)
         if text:find("Жалоба (.+) | {AFAFAF}(.+)%[(%d+)%]: (.+)") then  
             local number_report, nick_rep, id_rep, text_rep = text:match("Жалоба (.+) | {AFAFAF}(.+)%[(%d+)%]: (.+)") 
             sampAddChatMessage(tag .. "Пришел репорт " .. number_report .. " от " .. nick_rep .. "[" .. id_rep .. "]: " .. text_rep, -1)
-            if elements.settings.automute_mat[0] or elements.settings.automute_osk[0] or elements.settings.automute_rod[0] or elements.settings.automute_rod[0] then  
+            if (elements.settings.automute_mat[0] or elements.settings.automute_osk[0] or elements.settings.automute_rod[0] or elements.settings.automute_rod[0]) and main_access.settings.mute then  
                 local mat_text, _ = checkMessage(text_rep, 1)
                 local osk_text, _ = checkMessage(text_rep, 2)
                 local upom_text, _ = checkMessage(text_rep, 3)
@@ -1807,7 +2310,7 @@ function sampev.onServerMessage(color, text)
 
     -- ## Автомут, чей mainframe - чат ## --
     if not isGamePaused() and not isPauseMenuActive() then  
-        if check_text ~= nil and check_id ~= nil and (elements.settings.automute_mat[0] or elements.settings.automute_osk[0] or elements.settings.automute_upom[0] or elements.settings.automute_rod[0]) then  
+        if check_text ~= nil and check_id ~= nil and (elements.settings.automute_mat[0] or elements.settings.automute_osk[0] or elements.settings.automute_upom[0] or elements.settings.automute_rod[0]) and main_access.settings.mute then  
             local mat_text, _ = checkMessage(check_text, 1)
             local osk_text, _ = checkMessage(check_text, 2)
             local upom_text, _ = checkMessage(check_text, 3)
@@ -1881,7 +2384,6 @@ function loadRecon()
     wait(3000)
     accept_load_recon = true
 end
-
 function sampev.onTextDrawSetString(id, text) 
     if (id == 2056 or id == 2059) and elements.boolean.recon[0] then  
         info_to_player = textSplit(text, "~n~")
@@ -1908,6 +2410,42 @@ function sampev.onSendCommand(command)
 	end
 end
 
+
+-- ## Ивент, отвечающий за диалоги. В частности, здесь полностью прописан захват доступов от команд.
+function sampev.onShowDialog(id, style, title, button1, button2, text)
+	if title:find(getMyNick()) and id == 8991 then  
+		lua_thread.create(function()
+		text = atlibs.textSplit(text, '\n')
+		newtext = nil 
+		for i, v in ipairs(text) do  
+			if v:find('Все виды банов') and v:find('Имеется') then  
+				main_access.settings.ban = true
+				inicfg.save(main_access, access_file)
+			elseif v:find('Выдачу мута') and v:find('Имеется') then  
+				main_access.settings.mute = true
+				inicfg.save(main_access, access_file)
+			elseif v:find('Выдачу тюрьмы') and v:find('Имеется') then  
+				main_access.settings.jail = true
+				inicfg.save(main_access, access_file)
+			end
+			if v:find('Все виды банов') and v:find('Отсутствует') then  
+				main_access.settings.ban = false
+				inicfg.save(main_access, access_file)
+			elseif v:find('Выдачу мута') and v:find('Отсутствует') then  
+				main_access.settings.mute = false
+				inicfg.save(main_access, access_file)
+			elseif v:find('Выдачу тюрьмы') and v:find('Отсутствует') then  
+				main_access.settings.jail = false
+				inicfg.save(main_access, access_file)
+			end
+		end
+		sampAddChatMessage(tag .. '/access просканирован. Для просмотра своих /access, выключите повторный сканинг в настройках.', -1)
+		wait(1)
+		sampSendDialogResponse(8991, 0, -1)
+		end)
+	end
+end
+
 function sampev.onShowTextDraw(id, data)
     if elements.boolean.recon[0] then 
 		if id >= 183 and id <= 226 then  
@@ -1930,6 +2468,19 @@ function sampev.onShowTextDraw(id, data)
     end
 end
 -- ## Загрузка системы рекона ## -- 
+
+-- ## Рендер Date and Time ## --
+function drawDate()
+	font = renderCreateFont('Arial', 20, fflags.BOLD)
+	if elements.boolean.render_date[0] then  
+		while true do  
+			renderFontDrawText(font,'{FFFFFF}' .. (os.date("%d.%m.%y | %H:%M:%S", os.time())),10,sh-30,0xCCFFFFFF)
+
+			wait(1)
+		end
+	end
+end
+-- ## Рендер Date and Time ## --
 
 
 local ReconWindow = imgui.OnFrame(
@@ -2037,7 +2588,7 @@ local MainWindowAT = imgui.OnFrame(
         royalblue()
 
         imgui.SetNextWindowPos(imgui.ImVec2(sw / 2, sh / 2), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
-        imgui.SetNextWindowSize(imgui.ImVec2(1000, 600), imgui.Cond.FirstUseEver)
+        imgui.SetNextWindowSize(imgui.ImVec2(1300, 600), imgui.Cond.FirstUseEver)
 
         imgui.Begin(fa.SERVER .. " [AT for Android]", elements.imgui.main_window, imgui.WindowFlags.NoResize) 
 			if imgui.BeginTabBar("##MenuBar") then  
@@ -2093,6 +2644,30 @@ local MainWindowAT = imgui.OnFrame(
 							save() 
 						end
 						ActiveAutoMute()
+						imgui.Text(u8"Авто-онлайн")
+						imgui.SameLine()
+						if mim_addons.ToggleButton('##AutoOnline', elements.boolean.auto_online) then  
+							config.settings.auto_online = elements.boolean.auto_online[0]
+							save()  
+							send_online:run()
+						end
+						imgui.Text(u8'Административные формы')
+						imgui.SameLine()
+						if mim_addons.ToggleButton('##AdminsForms', elements.boolean.adminforms) then  
+							config.settings.adminforms = elements.boolean.adminforms[0]
+							save() 
+						end 
+						imgui.SameLine()
+						if imgui.Checkbox('##AutoForms', elements.boolean.autoforms) then  
+							config.settings.autoforms = elements.boolean.autoforms[0]
+							save() 
+						end; Tooltip('Принимает формы автоматически. Рекомендовано разработчиком!')
+						imgui.Text(u8'Вывод даты и времени')
+						imgui.SameLine()
+						if mim_addons.ToggleButton('##RenderDate', elements.boolean.render_date) then  
+							config.settings.render_date = elements.boolean.render_date[0]
+							save()  
+						end
 					imgui.EndTabItem()
 				end
 				if imgui.BeginTabItem(fa.BOOK .. u8" Автомут") then  
@@ -2234,9 +2809,272 @@ local MainWindowAT = imgui.OnFrame(
 					end
 					imgui.EndTabItem()
 				end 
+				if imgui.BeginTabItem(fa.TABLE_LIST .. u8' Флуды') then  
+					showFlood_ImGUI()
+					imgui.EndTabItem()
+				end
 				if imgui.BeginTabItem(fa.LIST .. u8" Биндер /ans") then   
 					QuestionAnswer.BinderEdit()
+					imgui.EndTabItem()
 				end
+				if imgui.BeginTabItem(fa.USERS .. u8' Мероприятия') then  
+					if imgui.BeginTabBar('##EventBar') then  
+						if imgui.BeginTabItem(fa.WAREHOUSE .. u8" Начальное окно") then  
+							posX, posY, posZ = getCharCoordinates(PLAYER_PED)
+							imgui.TextWrapped(u8"Здесь Вы можете создать мероприятие и управлять им.")
+							imgui.TextWrapped(u8"Содержание окна меняется в зависимости от выбранного меню.")
+							imgui.TextWrapped(u8"Кроме этого, интеграция данного окна также присутствует в открытии мероприятия.")
+							imgui.TextWrapped(u8"AT Events обладает функциями управления мероприятиям в режиме RealTime.")
+							imgui.TextWrapped(u8"AT Events предполагает создание своего мероприятия с нуля или использования заготовленных разработчиком.")
+							imgui.Text('')
+							imgui.Text(u8'Ваши корды: \nX: ' .. posX .. ' | Y: ' .. posY .. ' | Z: ' .. posZ)
+							imgui.EndTabItem()
+						end
+						if imgui.BeginTabItem(fa.MAP_LOCATION .. u8' Создание МП') then  
+							imgui.Text(u8'Данный раздел позволяет создать свое мероприятие.')
+							imgui.TextWrapped(u8"Создание мероприятия через данное окно предусматривает его сохранение через кнопочку. ")
+							imgui.Text(u8"Правила создаются по принципу флудов.");
+							Tooltip("Текст в правилах/описание следует следующему правилу:\n1. Вводится по принципу флудов, т.е. номер цвета mess и текст. Пример: \n 6 Участие в МП могут принять все! \n 6 Запрещено пользоваться /heal, /r и /s\n2. Каждая строчка делается отдельно для правильного вывода. ")
+							imgui.Separator()
+							imgui.PushItemWidth(130)
+							imgui.InputText(u8"Имя MP", elements.buffers.name, ffi.sizeof(elements.buffers.name))  
+							imgui.PopItemWidth()
+							imgui.SameLine()
+							imgui.PushItemWidth(60)
+							imgui.InputText(u8"/dt", elements.buffers.vdt, ffi.sizeof(elements.buffers.vdt)); Tooltip("Если сюда ничего не вводить, то виртуальный мир введется рандомно.")
+							imgui.PopItemWidth()
+							imgui.Separator()
+							imgui.CenterText("Правила мероприятия")
+							imgui.PushItemWidth(400)
+							imgui.InputTextMultiline("##RulesForEvent", elements.buffers.rules, ffi.sizeof(elements.buffers.rules), imgui.ImVec2(-1, 250))
+							imgui.PopItemWidth()
+							if imgui.Button(u8"Вывод правил") then  
+								text = atlibs.string_split(ffi.string(elements.buffers.rules):gsub("\n", "~"), "~")
+								for _, i in pairs(text) do  
+									sampSendChat("/mess " .. u8:decode(i))
+								end
+							end; Tooltip("Кликать после начала МП для правильности проведения.")
+							imgui.SameLine()
+							imgui.SetCursorPosX(imgui.GetWindowWidth() - 400)
+							if imgui.Button(u8"Станд.правила") then  
+								sampSendChat("/mess 6 На мероприятии нельзя: /passive, /anim, /r - /s, DM, нарушать прочие правила проекта")
+								sampSendChat("/mess 6 При нарушении правил, Вы будете посажены в Jail.")
+							end; Tooltip("Кликать после начала МП для правильности проведения.")
+							imgui.SameLine()
+							imgui.SetCursorPosX(imgui.GetWindowWidth() - 200)
+							if imgui.Button(u8"Начать МП") then  
+								lua_thread.create(function()
+									sampSendChat("/mp")
+									sampSendDialogResponse(5343, 1, 15)
+									wait(1)
+									sampSendDialogResponse(16069, 1, 1)
+									if #ffi.string(elements.buffers.vdt) > 0 then  
+										sampSendDialogResponse(16070, 1, 0, u8:decode(tostring(ffi.string(elements.buffers.vdt))))
+									else
+										math.randomseed(os.clock())
+										local dt = math.random(500, 999)
+										imgui.StrCopy(elements.buffers.vdt, tostring(dt))
+										sampSendDialogResponse(16070, 1, 0, tostring(dt))
+									end
+									sampSendDialogResponse(16069, 1, 2)
+									sampSendDialogResponse(16071, 1, 0, "0")
+									sampSendDialogResponse(16069, 0, 0)
+									sampSendDialogResponse(5343, 1, 0)
+									wait(200)
+									sampSendDialogResponse(5344, 1, 0, u8:decode(tostring(ffi.string(elements.buffers.name))))
+									sampSendChat("/mess 6 Уважаемые игроки! Проходит меропряитие: " .. u8:decode(tostring(ffi.string(elements.buffers.name))) .. ". Желающие: /tpmp")
+									sampSendChat("/mess 6 Уважаемые игроки! Проходит меропряитие: " .. u8:decode(tostring(ffi.string(elements.buffers.name))) .. ". Желающие: /tpmp")
+									wait(1)
+									sampSendDialogResponse(5344, 0, 0)
+									wait(1)
+									sampSendDialogResponse(5343, 0, 0)
+								end)
+							end
+							imgui.SameLine()
+							if imgui.Button(fa.UPLOAD) then  
+								positionX, positionY, positionZ = getCharCoordinates(playerPed)
+								positionX = string.sub(tostring(positionX), 1, string.find(tostring(positionX), ".")+6)
+								positionY = string.sub(tostring(positionY), 1, string.find(tostring(positionY), ".")+6)
+								positionZ = string.sub(tostring(positionZ), 1, string.find(tostring(positionZ), ".")+6)
+								imgui.StrCopy(elements.buffers.coord, tostring(positionX) .. "," .. tostring(positionY) .. "," .. tostring(positionZ))
+								local refresh_text = ffi.string(elements.buffers.rules):gsub("\n", "~")
+								table.insert(cfgevents.bind_name, ffi.string(elements.buffers.name))
+								table.insert(cfgevents.bind_text, refresh_text)
+								table.insert(cfgevents.bind_vdt, tostring(ffi.string(elements.buffers.vdt)))
+								table.insert(cfgevents.bind_coords, ffi.string(elements.buffers.coord))
+								if EventsSave() then  
+									sampAddChatMessage(tag .. 'МП "' ..u8:decode(ffi.string(elements.buffers.name)).. '" успешно добавлено в Биндер!', -1)
+									imgui.StrCopy(elements.buffers.name, '')
+									imgui.StrCopy(elements.buffers.text, '')
+									imgui.StrCopy(elements.buffers.vdt, '0')
+									imgui.StrCopy(elements.buffers.coord, '0')
+								end  
+							end; Tooltip("Функция позволяет сохранить данное мероприятия в Биндере. \nВыставляется местоположение, откуда Вы его начали, где Вы на данный момент стоите.")
+
+							imgui.EndTabItem()
+						end 
+						if imgui.BeginTabItem(fa.TERMINAL .. u8' Заготовки и биндер') then  
+							imgui.TextWrapped(u8"В данном разделе можно использовать мероприятия от разработчика, либо создать свои и использовать их в дальнейшем.")
+							imgui.TextWrapped(u8"Помощник по созданию. Наведите мышкой! Я могу показывать Вам сообщение помощника :D");
+							Tooltip("И так. Легкое объяснение по созданию своего мероприятия. \nТекст в правилах/описание следует следующему правилу:\n1. Вводится по принципу флудов, т.е. номер цвета mess и текст. Пример: \n 6 Участие в МП могут принять все! \n 6 Запрещено пользоваться /heal, /r и /s\n2. Каждая строчка делается отдельно для правильного вывода. \n\n Координаты лучше брать из домашней страницы, либо выбирать 'Моя позиция' \n Виртуальный мир рекомендуется выбирать рандомно, при помощи кнопки скрипта \n Мероприятия стабильно редактируются, поэтому Вы все можете подстроить под себя.")
+							imgui.Separator()
+
+							if imgui.Button(u8'Создать мероприятие') then  
+								imgui.StrCopy(elements.buffers.name, '')
+								imgui.StrCopy(elements.buffers.vdt, '0')
+								imgui.StrCopy(elements.buffers.coord, '0')
+								getpos = nil 
+								EditOldBind = false  
+								imgui.OpenPopup('EventsBinder')
+							end
+
+							if #cfgevents.bind_name > 0 then  
+								for key, bind in pairs(cfgevents.bind_name) do  
+									if imgui.Button(bind .. '##' .. key) then  
+										sampAddChatMessage(tag .. 'Реализую запуск вашего МП "' .. u8:decode(bind) .. '"', -1)
+										lua_thread.create(function()
+											if #cfgevents.bind_coords > 5 then  
+												coords = atlibs.string_split(cfgevents.bind_coords[key], ',')
+												setCharCoordinates(PLAYER_PED,coords[1],coords[2],coords[3])
+											end  
+											stream_text = atlibs.string_split(cfgevents.bind_text[key], '~')
+											wait(500)
+											sampSendChat('/mp')
+											sampSendDialogResponse(5343, 1, 15)
+											wait(1)
+											sampSendDialogResponse(16069, 1, 1)
+											sampSendDialogResponse(16070, 1, 0, cfgevents.bind_vdt[key])
+											sampSendDialogResponse(16069, 1, 2)
+											sampSendDialogResponse(16071, 1, 0, "0")
+											sampSendDialogResponse(16069, 0, 0)
+											sampSendDialogResponse(5343, 1, 0)
+											wait(200)
+											sampSendDialogResponse(5344, 1, 0, u8:decode(tostring(cfgevents.bind_name[key])))
+											sampSendChat("/mess 6 Уважаемые игроки! Проходит меропряитие: " .. u8:decode(tostring(cfgevents.bind_name[key])) .. ". Желающие: /tpmp")
+											sampSendChat("/mess 6 Уважаемые игроки! Проходит меропряитие: " .. u8:decode(tostring(cfgevents.bind_name[key])) .. ". Желающие: /tpmp")
+											wait(1)
+											sampSendDialogResponse(5344, 0, 0)
+											wait(1)
+											sampSendDialogResponse(5343, 0, 0)
+										end)
+									end  
+									imgui.SameLine()
+									if imgui.Button(fa.COMMENT_SLASH .. '##' .. key) then  
+										EditOldBind = true  
+										getpos = key 
+										local returnwrapped = tostring(cfgevents.bind_text[key]):gsub('~', '\n')
+										imgui.StrCopy(elements.buffers.text, returnwrapped)
+										imgui.StrCopy(elements.buffers.name, tostring(cfgevents.bind_name[key]))
+										imgui.StrCopy(elements.buffers.coord, tostring(cfgevents.bind_coords[key]))
+										imgui.StrCopy(elements.buffers.vdt, tostring(cfgevents.bind_vdt[key]))
+										imgui.OpenPopup('EventsBinder')
+									end  
+									imgui.SameLine()
+									if imgui.Button(fa.TRASH .. '##' .. key) then  
+										sampAddChatMessage(tag .. 'МП "' ..u8:decode(cfgevents.bind_name[key])..'" удалено!', -1)
+										table.remove(cfgevents.bind_name, key)
+										table.remove(cfgevents.bind_text, key)
+										EventsSave()
+									end
+								end  
+							else 
+								imgui.TextWrapped(u8'Ни одно мероприятие не зарегистрировано. Может, создадим?')
+							end
+
+							if imgui.BeginPopupModal('EventsBinder', false, imgui.WindowFlags.NoResize + imgui.WindowFlags.AlwaysAutoResize) then  
+								imgui.BeginChild('##CreateEdit', imgui.ImVec2(800, 500), true)
+									imgui.Text(u8"Название МП: "); imgui.SameLine()
+									imgui.PushItemWidth(130)
+									imgui.InputText('##name_events', elements.buffers.name, ffi.sizeof(elements.buffers.name))
+									imgui.PopItemWidth()
+									imgui.Text(u8"Виртуальный мир: "); Tooltip("Сейчас указание виртуального мира (отличное от 0) необходимо для создания своего мероприятия \nЛично рекомендую: указывайте от 500 до 999 рандомными значениями.\nПрименяйте в каждом своем мероприятии усредненное значение, чтобы самому не путаться.")
+									imgui.SameLine()
+									imgui.PushItemWidth(60)
+									imgui.InputText('##dt_event', elements.buffers.vdt, ffi.sizeof(elements.buffers.vdt))
+									imgui.PopItemWidth()
+									imgui.SameLine()
+									if imgui.Button(u8"Рандом") then  
+										math.randomseed(os.clock())
+										local dt = math.random(500, 999)
+										imgui.StrCopy(elements.buffers.vdt, tostring(dt))
+									end; Tooltip("Скрипт сам вставляет рандомный номер виртуального мира (/dt)")
+									imgui.Text(u8"Координаты начала МП: ")
+									imgui.SameLine()
+									imgui.PushItemWidth(250)
+									imgui.InputText("##CoordsEvent", elements.buffers.coord, ffi.sizeof(elements.buffers.coord))
+									imgui.PopItemWidth()
+									imgui.SameLine()
+									if imgui.Button(u8"Моя позиция") then  
+										positionX, positionY, positionZ = getCharCoordinates(playerPed)
+										positionX = string.sub(tostring(positionX), 1, string.find(tostring(positionX), ".")+6)
+										positionY = string.sub(tostring(positionY), 1, string.find(tostring(positionY), ".")+6)
+										positionZ = string.sub(tostring(positionZ), 1, string.find(tostring(positionZ), ".")+6)
+										imgui.StrCopy(elements.buffers.coord, tostring(positionX) .. "," .. tostring(positionY) .. "," .. tostring(positionZ))
+									end; Tooltip("Выбирает координаты, на которых Вы сейчас находитесь. \nКоординаты укорочены приблизительно до 2-4 знаков после запятой.")
+									imgui.Separator()
+									imgui.Text(u8"Правила/описание МП:")
+									imgui.PushItemWidth(300)
+									imgui.InputTextMultiline("##EventText", elements.buffers.text, ffi.sizeof(elements.buffers.text), imgui.ImVec2(-1, 280))
+									imgui.PopItemWidth()
+									imgui.SetCursorPosX((imgui.GetWindowWidth() - 100) / 100)
+									if imgui.Button(u8'Закрыть##bind') then  
+										imgui.StrCopy(elements.buffers.name, '')
+										imgui.StrCopy(elements.buffers.text, '')
+										imgui.StrCopy(elements.buffers.vdt, '0')
+										imgui.StrCopy(elements.buffers.coord, '0')
+										imgui.CloseCurrentPopup()
+									end  
+									imgui.SameLine()
+									if #ffi.string(elements.buffers.name) > 0 and #ffi.string(elements.buffers.text) > 0 then  
+										imgui.SetCursorPosX((imgui.GetWindowWidth() - 200) / 1.01)
+										if imgui.Button(u8'Сохранить##bind') then  
+											if not EditOldBind then  
+												local refresh_text = ffi.string(elements.buffers.text):gsub("\n", "~")
+												table.insert(cfgevents.bind_name, ffi.string(elements.buffers.name))
+												table.insert(cfgevents.bind_text, refresh_text)
+												table.insert(cfgevents.bind_vdt, tostring(ffi.string(elements.buffers.vdt)))
+												table.insert(cfgevents.bind_coords, ffi.string(elements.buffers.coord))
+												if EventsSave() then  
+													sampAddChatMessage(tag .. 'МП "' ..u8:decode(ffi.string(elements.buffers.name)).. '" успешно создано!', -1)
+													imgui.StrCopy(elements.buffers.name, '')
+													imgui.StrCopy(elements.buffers.text, '')
+													imgui.StrCopy(elements.buffers.vdt, '0')
+													imgui.StrCopy(elements.buffers.coord, '0')
+												end  
+												imgui.CloseCurrentPopup()
+											else 
+												local refresh_text = ffi.string(elements.buffers.text):gsub("\n", "~")
+												table.insert(cfgevents.bind_name, getpos, ffi.string(elements.buffers.name))
+												table.insert(cfgevents.bind_text, getpos, refresh_text)
+												table.insert(cfgevents.bind_vdt, getpos, tostring(ffi.string(elements.buffers.vdt)))
+												table.insert(cfgevents.bind_coords, getpos, ffi.string(elements.buffers.coord))
+												table.remove(cfgevents.bind_name, getpos + 1)
+												table.remove(cfgevents.bind_text, getpos + 1)
+												table.remove(cfgevents.bind_vdt, getpos + 1)
+												table.remove(cfgevents.bind_coords, getpos + 1)
+												if EventsSave() then
+													sampAddChatMessage(tag .. 'МП "' ..u8:decode(ffi.string(elements.buffers.name)).. '" успешно отредактировано!', -1)
+													imgui.StrCopy(elements.buffers.name, '')
+													imgui.StrCopy(elements.buffers.text, '')
+													imgui.StrCopy(elements.buffers.vdt, '0')
+													imgui.StrCopy(elements.buffers.coord, '0')
+												end
+												EditOldBind = false 
+												imgui.CloseCurrentPopup()
+											end
+										end                        
+									end
+								imgui.EndChild()
+								imgui.EndPopup()
+							end
+
+							imgui.EndTabItem()
+						end
+						imgui.EndTabBar()
+					end 
+					imgui.EndTabItem()
+				end 
+				imgui.EndTabBar()
 			end 
         imgui.End()
     end
@@ -2330,7 +3168,7 @@ function ActiveAutoMute()
 end
 
 function ReadWriteAM()
-	imgui.Text(u8"Ниже представлен список файлов в виде кнопок.\nДля выбора файла, нажмите на кнопку.")
+	imgui.TextWrapped(u8"Ниже представлен список файлов в виде кнопок. Для выбора файла, нажмите на кнопку.")
     imgui.BeginChild('##MenuRWAMF', imgui.ImVec2(230, 380), true)
         if imgui.Button(u8"Мат") then  
             elements.imgui.selectable = 1
@@ -2348,7 +3186,7 @@ function ReadWriteAM()
     imgui.SameLine()
     imgui.BeginChild('##WindowRWAMF', imgui.ImVec2(700, 380), true)
         if elements.imgui.selectable == 0 then  
-            imgui.Text(u8"Редактируйте файлы аккуратно. \nКаждое Вами введенное слово будет фиксироваться \nв файле при сохранении.")
+            imgui.TextWrapped(u8"Редактируйте файлы аккуратно. Каждое Вами введенное слово будет фиксироваться в файле при сохранении.")
             imgui.Text(u8"На данный момент ни один файл не приведен в чтение.")
         end  
         if elements.imgui.selectable == 1 then  
@@ -2438,3 +3276,412 @@ function ReadWriteAM()
     imgui.EndChild()
 end
 -- ## Блок функций-экспорта для интеграций их в основной скрипт ## --
+
+function showFlood_ImGUI()
+    local colours_mess = [[
+0 - {FFFFFF}белый, {FFFFFF}1 - {000000}черный, {FFFFFF}2 - {008000}зеленый, {FFFFFF}3 - {80FF00}светло-зеленый
+4 - {FF0000}красный, {FFFFFF}5 - {0000FF}синий, {FFFFFF}6 - {FDFF00}желтый, {FFFFFF}7 - {FF9000}оранжевый
+8 - {B313E7}фиолетовый, {FFFFFF}9 - {49E789}бирюзовый, {FFFFFF}10 - {139BEC}голубой
+11 - {2C9197}темно-зеленый, {FFFFFF}12 - {DDB201}золотой, {FFFFFF}13 - {B8B6B6}серый, {FFFFFF}14 - {FFEE8A}светло-желтый
+15 - {FF9DB6}розовый, {FFFFFF}16 - {BE8A01}коричневый, {FFFFFF}17 - {E6284E}темно-розовый
+]]
+    imgui.Text(u8"Здесь можно использовать флуды в чат /mess для игроков.")
+    imgui.Separator()
+    if imgui.CollapsingHeader(u8'Напоминание цветов /mess') then  
+        imgui.TextColoredRGB('0 - {FFFFFF}белый, {FFFFFF}1 - {000000}черный, {FFFFFF}2 - {008000}зеленый, {FFFFFF}3 - {80FF00}светло-зеленый')
+		imgui.TextColoredRGB('4 - {FF0000}красный, {FFFFFF}5 - {0000FF}синий, {FFFFFF}6 - {FDFF00}желтый, {FFFFFF}7 - {FF9000}оранжевый')
+		imgui.TextColoredRGB('4 - {B313E7}фиолетовый, {FFFFFF}9 - {49E789}бирюзовый, {FFFFFF}10 - {139BEC}голубой')
+		imgui.TextColoredRGB('11 - {2C9197}темно-зеленый, {FFFFFF}12 - {DDB201}золотой, {FFFFFF}13 - {B8B6B6}серый, {FFFFFF}14 - {FFEE8A}светло-желтый')
+		imgui.TextColoredRGB('15 - {FF9DB6}розовый, {FFFFFF}16 - {BE8A01}коричневый, {FFFFFF}17 - {E6284E}темно-розовый')
+    end
+    if imgui.Button(u8"Основные флуды") then  
+        imgui.OpenPopup('mainFloods')
+    end
+    if imgui.Button(u8"Флуд об GangWar") then  
+        imgui.OpenPopup('FloodsGangWar')
+    end 
+    if imgui.Button(u8"Мероприятия /join") then  
+        imgui.OpenPopup('FloodsJoinMP')
+    end
+    if imgui.BeginPopup('mainFloods') then  
+        if imgui.Button(u8'Флуд про репорты') then
+			sampSendChat("/mess 4 ===================== | Репорты | ====================")
+			sampSendChat("/mess 0 Заметили читера или нарушителя?")
+			sampSendChat("/mess 4 Вводите /report, пишите туда ID нарушителя/читера!")
+			sampSendChat("/mess 0 Наши администраторы ответят вам и разберутся с ними. <3")
+			sampSendChat("/mess 4 ===================== | Репорты | ====================")
+		end
+		imgui.SameLine()
+		if imgui.Button(u8'Флуд про VIP') then
+			sampSendChat("/mess 2 ===================== | VIP | ====================")
+			sampSendChat("/mess 3 Всегда хотел смотреть на людей свыше?")
+			sampSendChat("/mess 2 Тобой управляет зависть? Устрани это с помощью 10к очков.")
+			sampSendChat("/mess 3 Вводи команду /sellvip и ты получишь VIP!")
+			sampSendChat("/mess 2 ===================== | VIP | ====================")
+		end
+		if imgui.Button(u8'Флуд про оплату бизнеса/дома') then
+			
+			sampSendChat("/mess 5 ===================== | Банк | ====================")
+			sampSendChat("/mess 10 Дом или бизнес нужно оплачивать. Как? -> ..")
+			sampSendChat("/mess 0 Для этого необходимо, написать /tp, затем Разное -> Банк...")
+			sampSendChat("/mess 0 ...после этого пройти в Банк, открыть счет и..")
+			sampSendChat("/mess 10 ..и щелкнуть по Оплата дома или Оплата бизнеса. На этом все.")
+			sampSendChat("/mess 5 ===================== | Банк | ====================")
+		end
+		if imgui.Button(u8'Флуд про /dt 0-990 (режим тренировки)') then
+			
+			sampSendChat("/mess 6 =================== | Виртуальный мир | ==================")
+			sampSendChat("/mess 0 Перестрелки умотала? Обыденный ДМ, вечная стрельба..")
+			sampSendChat("/mess 0 Тебе хочется отдохнуть? Это можно исправить! <3")
+			sampSendChat("/mess 0 Скорее вводи /dt 0-990. Число - это виртуальный мир.")
+			sampSendChat("/mess 0 Не забудьте сообщить друзьям свой мир. Удачной игры. :3")
+			sampSendChat("/mess 6 =================== | Виртуальный мир  | ==================")
+			
+		end
+		if imgui.Button(u8'Флуд про /storm') then
+			
+			sampSendChat("/mess 2 ===================== | Шторм | ====================")
+			sampSendChat("/mess 3 Всегда хотели заработать рубли ? У вас есть возможность!")
+			sampSendChat("/mess 2 Вводи команду /storm , после чего подойтите к NPC ... ")
+			sampSendChat("/mess 3 ...нажмите присоединится к штурму.")
+			sampSendChat("/mess 2 Когда наберётся нужное количиство игроков штурм начнётся.")
+			sampSendChat("/mess 2 ===================== | Шторм | ====================")
+			
+		end
+		if imgui.Button(u8'Флуд про /arena') then
+			
+			sampSendChat("/mess 7 ===================== | Арена | ====================")
+			sampSendChat("/mess 0 Хочешь испытать свои навыки в стрельбе?")
+			sampSendChat("/mess 7 Скорее вводи /arena, выбери свое поле боя.")
+			sampSendChat("/mess 0 Перестреляй всех, победи их. Покажи, кто умеет показать себя. <3")
+			sampSendChat("/mess 7 ===================== | Арена | ====================")
+			
+		end
+		imgui.SameLine()
+		if imgui.Button(u8'Флуд про VK group') then
+			
+			sampSendChat("/mess 15 ===================== | ВКонтакте | ====================")
+			sampSendChat("/mess 0 Всегда хотел поучаствовать в конкурсе?")
+			sampSendChat("/mess 15 В твоей голове появились мысли, как улучшить сервер?")
+			sampSendChat("/mess 0 Заходи в нашу группу ВКонтакте: https://vk.com/dmdriftgta")
+			sampSendChat("/mess 15 ===================== | ВКонтакте | ====================")
+			
+		end
+		if imgui.Button(u8'Флуд про автосалон') then
+			
+			sampSendChat("/mess 12 ===================== | Автосалон | ====================")
+			sampSendChat("/mess 0 У тебя появились коины? Ты хочешь личную тачку?")
+			sampSendChat("/mess 12 Вводи команду /tp -> Разное -> Автосалоны")
+			sampSendChat("/mess 0 Выбирай нужный автосалон, купи машину за RDS коины. И катайся :3")
+			sampSendChat("/mess 12 ===================== | Автосалон | ====================")
+			
+		end
+		if imgui.Button(u8'Флуд про сайт RDS') then
+			
+			sampSendChat("/mess 8 ===================== | Донат | ====================")
+			sampSendChat("/mess 15 Хочешь задонатить на свой любимый сервер RDS? :> ")
+			sampSendChat("/mess 15 Ты это можешь сделать с радостью! Сайт: myrds.ru :3 ")
+			sampSendChat("/mess 15 И через основателя: @empirerosso")
+			sampSendChat("/mess 8 ===================== | Донат | ====================")
+			
+		end
+		imgui.SameLine()
+		if imgui.Button(u8'Флуд про /gw') then
+			
+			sampSendChat("/mess 10 ===================== | Capture | ====================")
+			sampSendChat("/mess 5 Тебе нравится играть за банды в GTA:SA? Они тут тоже есть! :>")
+			sampSendChat("/mess 5 Сделай это с помощью /gw, едь на территорию с друзьями")
+			sampSendChat("/mess 5 Чтобы начать воевать за территорию, введи команду /capture XD")
+			sampSendChat("/mess 10 ===================== | Capture | ====================")
+			
+		end
+		if imgui.Button(u8"Флуд про группу Сейчас на RDS") then
+			
+			sampSendChat("/mess 2 ================== | Свободная группа RDS | =================")
+			sampSendChat("/mess 11 Давно хотели скинуть свои скрины, и показать другим?")
+			sampSendChat("/mess 2 Попробовать продать что-нибудь, но в игре никто не отзывается?")
+			sampSendChat("/mess 11 Вы можете посетить свободную группу: https://vk.com/freerds")
+			sampSendChat("/mess 2 ================== | Свободная группа RDS | =================")
+			
+		end
+		if imgui.Button(u8"Флуд про /gangwar") then 
+			
+			sampSendChat("/mess 16 ===================== | Сражения | ====================")
+			sampSendChat("/mess 13 Хотели сразиться с другими бандами? Выпустить гнев?")
+			sampSendChat("/mess 16 Вы можете себе это позволить! Можете побороть другие банды")
+			sampSendChat("/mess 13 Команда /gangwar, выбираете территорию и сражаетесь за неё.")
+			sampSendChat("/mess 16 ===================== | Сражения | ====================")
+			
+		end 
+		imgui.SameLine()
+		if imgui.Button(u8"Флуд про работы") then
+			
+			sampSendChat("/mess 14 ===================== | Работы | ====================")
+			sampSendChat("/mess 13 Не хватает денег на оружие? Не хватает на машинку?")
+			sampSendChat("/mess 13 Ради наших ДМеров и дрифтеров, придуманы работы для деньжат")
+			sampSendChat("/mess 13 Черный день открыт, переходи /tp -> Работы")
+			sampSendChat("/mess 14 ===================== | Работы | ====================")
+			
+		end
+		if imgui.Button(u8"Флуд о моде") then  
+			
+			sampSendChat("/mess 13 ===================== | Мод RDS | ====================")
+			sampSendChat("/mess 0 Посвящаем вас в мод RDS. Прежде всего, мы Drift Server")
+			sampSendChat("/mess 13 Также у нас есть дополнения, это GangWar, DM с элементами RPG")
+			sampSendChat("/mess 0 Большинство команд и все остальное указано в /help")
+			sampSendChat("/mess 13 ===================== | Мод RDS | ====================")
+			
+		end
+		imgui.SameLine()
+		if imgui.Button(u8'Флуд про /trade') then
+			
+			sampSendChat("/mess 9 ===================== | Трейд | ====================")
+			sampSendChat("/mess 3 Хотите разные аксессуары, а долго играть не хочется и есть вирты/очки/коины/рубли?")
+			sampSendChat("/mess 9 Введите /trade, подойдите к занятой лавки, спросите у человека и купите предмет.")
+			sampSendChat("/mess 3 Также, справа от лавок есть NPC Арман, у него также можно что-то взять.")
+			sampSendChat("/mess 9 ===================== | Трейд | ====================")
+			
+		end
+		if imgui.Button(u8'Флуд про форум') then 
+			
+			sampSendChat("/mess 4 ===================== | Форум | ====================")
+			sampSendChat('/mess 0 Есть жалобы на игроков/админов? Есть вопросы? Хотите играть с телефона?')
+			sampSendChat('/mess 4 У нас есть форум - https://forumrds.ru. Там есть полезная инфа :D')
+			sampSendChat('/mess 0 Кроме этого, там есть курилка и галерея. Веселитесь, игроки <3')
+			sampSendChat("/mess 4 ===================== | Форум  | ====================")
+			
+		end	
+		if imgui.Button(u8'Флуд про набор адм') then 
+			
+			sampSendChat("/mess 15 ===================== | Набор | ====================")
+			sampSendChat('/mess 17 Дорогие игроки! Вы знаете правила нашего проекта?')
+			sampSendChat('/mess 15 Если вы когда-то хотели стать админом, то это ваш шанс!')
+			sampSendChat('/mess 17 Уже на форуме открыты заявки! Успейте подать: https://forumrds.ru')
+			sampSendChat("/mess 15 ===================== | Набор | ====================")
+			
+		end
+		if imgui.Button(u8'Спавн каров на 15 секунд') then
+			
+			sampSendChat("/mess 14 Уважаемые игроки. Сейчас будет респавн всего серверного транспорта")
+			sampSendChat("/mess 14 Займите водительские места, и продолжайте дрифтить, наши любимые :3")
+			sampSendChat("/delcarall ")
+			sampSendChat("/spawncars 15 ")
+			showNotification("Респавн т/с начался")
+			
+		end
+	    if imgui.Button(u8'Квесты') then
+			
+		    sampSendChat("/mess 8 =================| Квесты NPC |=================")
+		    sampSendChat("/mess 0 Не можете найти NPC которые дают квесты? :D")
+		    sampSendChat("/mess 0 И так где же их найти , - ALT(/mm) - Телепорты - ...")
+		    sampSendChat("/mess 0 ...Василий Андроид, Бродяга Диман, и на каждом спавне...")
+		    sampSendChat("/mess 0 ...NPC Кейн. Приятной игры на RDS <3")
+		    sampSendChat("/mess 8 =================| Квесты NPC |=================")
+			
+		end	
+	    imgui.EndPopup()
+    end
+    if imgui.BeginPopup('FloodsGangWar') then  
+        if imgui.Button(u8"Aztecas vs Ballas") then  
+			
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			sampSendChat("/mess 3 Игра -  GangWar: /gw")
+			sampSendChat("/mess 0 Varios Los Aztecas vs East Side Ballas ")
+			sampSendChat("/mess 0 Помогите своим братьям, заходите через /gw за любимую банду")
+			sampSendChat("/mess 3 Игра - GangWar: /gw")
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			
+		end
+		imgui.SameLine()
+		if imgui.Button(u8"Aztecas vs Groove") then  
+			
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			sampSendChat("/mess 2 Игра -  GangWar: /gw")
+			sampSendChat("/mess 0 Varios Los Aztecas vs Groove Street ")
+			sampSendChat("/mess 0 Помогите своим братьям, заходите через /gw за любимую банду")
+			sampSendChat("/mess 2 Игра - GangWar: /gw")
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			
+		end
+		if imgui.Button(u8"Aztecas vs Vagos") then  
+			
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			sampSendChat("/mess 4 Игра -  GangWar: /gw")
+			sampSendChat("/mess 0 Varios Los Aztecas vs Los Santos Vagos ")
+			sampSendChat("/mess 0 Помогите своим братьям, заходите через /gw за любимую банду")
+			sampSendChat("/mess 4 Игра - GangWar: /gw")
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			
+		end
+		imgui.SameLine()
+		if imgui.Button(u8"Aztecas vs Rifa") then  
+			
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			sampSendChat("/mess 5 Игра -  GangWar: /gw")
+			sampSendChat("/mess 0 Varios Los Aztecas vs The Rifa ")
+			sampSendChat("/mess 0 Помогите своим братьям, заходите через /gw за любимую банду")
+			sampSendChat("/mess 5 Игра - GangWar: /gw")
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			
+		end
+		if imgui.Button(u8"Ballas vs Groove") then  
+			
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			sampSendChat("/mess 6 Игра -  GangWar: /gw")
+			sampSendChat("/mess 0 East Side Ballas vs Groove Street  ")
+			sampSendChat("/mess 0 Помогите своим братьям, заходите через /gw за любимую банду")
+			sampSendChat("/mess 6 Игра - GangWar: /gw")
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			
+		end
+		imgui.SameLine()
+		if imgui.Button(u8"Ballas vs Rifa") then  
+			
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			sampSendChat("/mess 7 Игра -  GangWar: /gw")
+			sampSendChat("/mess 0 East Side Ballas vs The Rifa ")
+			sampSendChat("/mess 0 Помогите своим братьям, заходите через /gw за любимую банду")
+			sampSendChat("/mess 7 Игра - GangWar: /gw")
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			
+		end
+		if imgui.Button(u8"Groove vs Rifa") then  
+			
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			sampSendChat("/mess 8 Игра -  GangWar: /gw")
+			sampSendChat("/mess 0 Groove Street  vs The Rifa ")
+			sampSendChat("/mess 0 Помогите своим братьям, заходите через /gw за любимую банду")
+			sampSendChat("/mess 8 Игра - GangWar: /gw")
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			
+		end
+		imgui.SameLine()
+		if imgui.Button(u8"Groove vs Vagos") then  
+			
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			sampSendChat("/mess 9 Игра -  GangWar: /gw")
+			sampSendChat("/mess 0 Groove Street vs Los Santos Vagos ")
+			sampSendChat("/mess 0 Помогите своим братьям, заходите через /gw за любимую банду")
+			sampSendChat("/mess 9 Игра - GangWar: /gw")
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			
+		end
+		if imgui.Button(u8"Vagos vs Rifa") then  
+			
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			sampSendChat("/mess 10 Игра -  GangWar: /gw")
+			sampSendChat("/mess 0 Los Santos Vagos vs The Rifa ")
+			sampSendChat("/mess 0 Помогите своим братьям, заходите через /gw за любимую банду")
+			sampSendChat("/mess 10 Игра - GangWar: /gw")
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			
+		end
+		imgui.SameLine()
+		if imgui.Button(u8"Ballas vs Vagos") then  
+			
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			sampSendChat("/mess 11 Игра -  GangWar: /gw")
+			sampSendChat("/mess 0 East Side Ballas vs Los Santos Vagos ")
+			sampSendChat("/mess 0 Помогите своим братьям, заходите через /gw за любимую банду")
+			sampSendChat("/mess 11 Игра - GangWar: /gw")
+			sampSendChat("/mess 13 •------------------- GangWar -------------------•")
+			
+		end
+        imgui.EndPopup()
+    end
+    if imgui.BeginPopup('FloodsJoinMP') then  
+        if imgui.Button(u8'Мероприятие "Дерби" ') then 
+			
+			sampSendChat("/mess 8 ===================| [Event-Game-RDS] |==================")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Дерби»! Желающим: /derby")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Дерби»! Желающим: /derby")
+			sampSendChat("/mess 8 ===================| [Event-Game-RDS] |==================")
+			
+		end	
+		if imgui.Button(u8'Мероприятие "Паркур" ') then 
+			
+			sampSendChat("/mess 10 ===================| [Event-Game-RDS] |==================")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Паркур»! Желающим: /parkour")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Паркур»! Желающим: /parkour")
+			sampSendChat("/mess 10 ===================| [Event-Game-RDS] |==================")
+			
+		end	
+		if imgui.Button(u8'Мероприятие "PUBG" ') then 
+			
+			sampSendChat("/mess 9 ===================| [Event-Game-RDS] |==================")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «PUBG»! Желающим: /pubg")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «PUBG»! Желающим: /pubg")
+			sampSendChat("/mess 9 ===================| [Event-Game-RDS] |==================")
+			
+		end	
+		if imgui.Button(u8'Мероприятие "DAMAGE DM" ') then 
+			
+			sampSendChat("/mess 4 ===================| [Event-Game-RDS] |==================")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «DAMAGE DEATHMATCH»! Желающим: /damagedm")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «DAMAGE DEATHMATCH»! Желающим: /damagedm")
+			sampSendChat("/mess 4 ===================| [Event-Game-RDS] |==================")
+			
+		end	
+		if imgui.Button(u8'Мероприятие "KILL DM" ') then 
+			
+			sampSendChat("/mess 17 ===================| [Event-Game-RDS] |==================")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «KILL DEATHMATCH»! Желающим: /killdm")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «KILL DEATHMATCH»! Желающим: /killdm")
+			sampSendChat("/mess 17 ===================| [Event-Game-RDS] |==================")
+			
+		end	
+		if imgui.Button(u8'Мероприятие "Дрифт гонки" ') then 
+			
+			sampSendChat("/mess 7 ===================| [Event-Game-RDS] |==================")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Дрифт гонки»! Желающим: /drace")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Дрифт гонки»! Желающим: /drace")
+			sampSendChat("/mess 7 ===================| [Event-Game-RDS] |==================")
+			
+		end	
+		if imgui.Button(u8'Мероприятие "PaintBall" ') then 
+			
+			sampSendChat("/mess 12 ===================| [Event-Game-RDS] |==================")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «PaintBall»! Желающим: /paintball")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «PaintBall»! Желающим: /paintball")
+			sampSendChat("/mess 12 ===================| [Event-Game-RDS] |==================")
+			
+		end	
+		if imgui.Button(u8'Мероприятие "Зомби против людей" ') then 
+			
+			sampSendChat("/mess 13 ===================| [Event-Game-RDS] |==================")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Зомби против людей»! Желающим: /zombie")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Зомби против людей»! Желающим: /zombie")
+			sampSendChat("/mess 13 ===================| [Event-Game-RDS] |==================")
+			
+		end	
+		if imgui.Button(u8'Мероприятие "Новогодняя сказка" ') then 
+			
+			sampSendChat("/mess 3 ===================| [Event-Game-RDS] |==================")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Новогодняя сказка»! Желающим: /ny")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Новогодняя сказка»! Желающим: /ny")
+			sampSendChat("/mess 3 ===================| [Event-Game-RDS] |==================")
+			
+		end	
+		if imgui.Button(u8'Мероприятие "Capture Blocks" ') then 
+			
+			sampSendChat("/mess 16 ===================| [Event-Game-RDS] |==================")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Capture Blocks»! Желающим: /join -> 12")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Capture Blocks»! Желающим: /join -> 12")
+			sampSendChat("/mess 16 ===================| [Event-Game-RDS] |==================")
+			
+		end	
+		if imgui.Button(u8'Мероприятие "Прятки" ') then 
+			sampSendChat("/mess 11 ===================| [Event-Game-RDS] |==================")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Прятки»! Желающим: /join -> 10 «Прятки»")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Прятки»! Желающим: /join -> 10 «Прятки»")
+			sampSendChat("/mess 11 ===================| [Event-Game-RDS] |==================")
+		end	
+		if imgui.Button(u8'Мероприятие "Догонялки" ') then 
+			sampSendChat("/mess 3 ===================| [Event-Game-RDS] |==================")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Догонялки»! Желающим: /catchup")
+			sampSendChat("/mess 0 [MP-/join] Проводится мероприятие «Догонялки»! Желающим: /catchup")
+			sampSendChat("/mess 3 ===================| [Event-Game-RDS] |==================")
+		end
+        imgui.EndPopup()
+    end
+end

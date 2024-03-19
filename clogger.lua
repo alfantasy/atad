@@ -5,7 +5,6 @@ local imgui = require 'mimgui' -- инициализация интерфейса MoonLoader ImGUI
 local encoding = require 'encoding' -- работа с кодировками
 local sampev = require 'lib.samp.events' -- интеграция пакетов SA:MP и происходящих/исходящих/входящих т.д. ивентов
 local mim_addons = require 'mimgui_addons' -- интеграция аддонов для интерфейса mimgui
-local fa = require 'fAwesome6_solid' -- работа с иконами на основе FontAwesome 6
 local inicfg = require 'inicfg' -- работа с конфигом
 local toast_ok, toast = pcall(import, 'lib/mimtoasts.lua') -- интеграция уведомлений.
 local ffi = require 'ffi'
@@ -15,6 +14,12 @@ u8 = encoding.UTF8 -- объявление кодировки U8 как рабочую, но в форме переменной
 local new = imgui.new
 
 local sw, sh = getScreenResolution()
+
+imgui.OnInitialize(function()   
+	local glyph_ranges = imgui.GetIO().Fonts:GetGlyphRangesCyrillic()
+	imgui.GetIO().Fonts:Clear()
+	imgui.GetIO().Fonts:AddFontFromFileTTF(getWorkingDirectory() .. '/lib/mimgui/trebucbd.ttf', 24.0, _, glyph_ranges)
+end)
 
 local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/' -- You will need this for encoding/decoding
 -- encoding
@@ -112,7 +117,8 @@ end
 function main()
 
     sampRegisterChatCommand('findfiles', function()
-        files = getTxtFilesList(getWorkingDirectory() .. "/config/chatlog")
+        print(getWorkingDirectory())
+        files = getTxtFilesList(getWorkingDirectory() .. "/config/chatlog/")
         for i, k in ipairs(files) do  
             sampAddChatMessage("Индекс в таблице: " .. i .. " | Значение таблицы: " .. k, -1)
         end
@@ -146,7 +152,7 @@ function main()
 
     sampRegisterChatCommand("clog", function()
         chat_log_custom[0] = not chat_log_custom[0]
-        getTxtFilesList(getWorkingDirectory() .. "/config/chatlog")
+        getTxtFilesList(getWorkingDirectory() .. "/config/chatlog/")
     end)
 
     sampRegisterChatCommand('chelp', function()
@@ -229,7 +235,7 @@ local chatlogFrame = imgui.OnFrame(
         imgui.SetNextWindowPos(imgui.ImVec2((sw / 4.5), sh / 4), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
         imgui.SetNextWindowSize(imgui.ImVec2(500, 500), imgui.Cond.FirstUseEver)
         
-        imgui.Begin(u8'Чат-логгер', chat_log_custom)
+        imgui.Begin(u8'Чат-логгер', chat_log_custom, imgui.WindowFlags.AlwaysAutoResize)
 
             if update_files == false then  
                 imgui.Combo(u8"Список файлов", combo_select, combo_selectable, #logs_file)

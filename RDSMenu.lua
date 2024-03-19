@@ -63,6 +63,11 @@ function main()
 
     elements.boolean.window_menu[0] = true
 
+    sampRegisterChatCommand('devcommand', function() 
+        sampAddChatMessage(tag .. 'Закрываю диалог из-за рестарта AT', -1)
+        sampSendDialogResponse(2349, 0, -1) 
+    end)
+
     sampRegisterChatCommand('mrds', function()
         elements.boolean.settings_menu[0] = not elements.boolean.settings_menu[0]
     end)
@@ -120,7 +125,7 @@ local RDSWindowMenu = imgui.OnFrame(
                 end  
                 imgui.SameLine()
                 if imgui.Button('RSc') then  
-                    sampAddChatMessage(tag .. 'Производится перезагрузка скриптов.')
+                    sampAddChatMessage(tag .. 'Производится перезагрузка скриптов.', -1)
                     reloadScripts()
                 end
             end

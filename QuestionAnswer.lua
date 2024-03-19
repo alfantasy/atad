@@ -30,7 +30,10 @@ end
 
 imgui.OnInitialize(function()   
     imgui.GetIO().IniFilename = nil
-    fa.Init(20)
+	local glyph_ranges = imgui.GetIO().Fonts:GetGlyphRangesCyrillic()
+	imgui.GetIO().Fonts:Clear()
+	imgui.GetIO().Fonts:AddFontFromFileTTF(getWorkingDirectory() .. '/lib/mimgui/trebucbd.ttf', 24.0, _, glyph_ranges)
+	fa.Init(24)
 end)
 -- ƒÀﬂ œ–Œ¬≈– » Õ¿’”…
 
@@ -1077,7 +1080,7 @@ function SendBindReport(value)
 end
 
 function EXPORTS.BinderEdit()
-    imgui.BeginChild('##ListBinders', imgui.ImVec2(300, 540), true)
+    imgui.BeginChild('##ListBinders', imgui.ImVec2(400, 480), true)
         if #config.bind_name > 0 then  
             for key, name in pairs(config.bind_name) do 
                 if imgui.Button(name.. '##' ..key) then  
@@ -1098,7 +1101,7 @@ function EXPORTS.BinderEdit()
         end 
     imgui.EndChild()
     imgui.SameLine()
-    imgui.BeginChild("##EditBinder", imgui.ImVec2(680, 540), true)
+    imgui.BeginChild("##EditBinder", imgui.ImVec2(850, 480), true)
         imgui.Text(u8'Õ‡Á‚‡ÌËÂ ·ËÌ‰‡:'); imgui.SameLine()
         imgui.PushItemWidth(130)
         imgui.InputText("##elements.binder_name", elements.binder_name, ffi.sizeof(elements.binder_name))
