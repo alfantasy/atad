@@ -59,7 +59,7 @@ function downloadFile(url, path)
 	end
 end
 
-local version_control = 3
+local version_control = 4
 local version_text = '1.1'
 -- ## Контролирование версий AT. Скачивание, ссылки и директории. ## --
 
@@ -394,26 +394,26 @@ function main()
 				toast.Show(u8'Доступно обновление.\nAT начинает обновление автоматически.', toast.TYPE.INFO, 5)
 			else 
 				print(tag .. 'Отказ в подгрузке уведомлений.')
-				sampAddChatMessage(tag .. 'Доступно обновление. AT начинает автообновление!')
+				sampAddChatMessage(tag .. 'Доступно обновление. AT начинает автообновление!', -1)
 			end 
 			
 			local response_main = downloadFile(urls['main'], paths['main'])
 			if response_main then  
-				sampAddChatMessage(tag .. 'Основной скрипт АТ скачен.')
+				sampAddChatMessage(tag .. 'Основной скрипт АТ скачен.', -1)
 			end  
 			local response_lib = downloadFile(urls['libsfor'], paths['libsfor'])
 			if response_lib then  
-				sampAddChatMessage(tag .. 'Библиотека к АТ успешно скачена.')
+				sampAddChatMessage(tag .. 'Библиотека к АТ успешно скачена.', -1)
 			end  
 			local response_questans = downloadFile(urls['report'], paths['report'])
 			if response_questans then  
-				sampAddChatMessage(tag .. 'Скрипт для репортов скачен.')
+				sampAddChatMessage(tag .. 'Скрипт для репортов скачен.', -1)
 			end  
 			local response_clogger = downloadFile(urls['clogger'], paths['clogger'])
 			if response_clogger then  
-				sampAddChatMessage(tag .. 'Чат-логгер скачен')
+				sampAddChatMessage(tag .. 'Чат-логгер скачен', -1)
 			end
-			sampAddChatMessage(tag .. 'Начинаю перезагрузку скриптов!')
+			sampAddChatMessage(tag .. 'Начинаю перезагрузку скриптов!', -1)
 			reloadScripts()
 		else 
 			if toast_ok then  
