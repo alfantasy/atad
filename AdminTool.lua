@@ -3091,6 +3091,7 @@ local MainWindowAT = imgui.OnFrame(
 						local response_menu = downloadFile(urls['rdsmenu'], paths['rdsmenu'])
 						if response_menu then  
 							sampAddChatMessage(tag .. 'Обновление функционального меню произошло успешно.')
+							reloadScripts()
 						end
 					end
 					imgui.EndTabItem()
