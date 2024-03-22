@@ -28,7 +28,8 @@ local urls = {
 	['libsfor'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/libsfor.lua',
 	['report'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/QuestionAnswer.lua',
 	['upat'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/upat.ini',
-	['clogger'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/clogger.lua'
+	['clogger'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/clogger.lua',
+	['rdsmenu'] = 'https://raw.githubusercontent.com/alfantasy/atad/main/RDSMenu.lua'
 }
 
 local paths = {
@@ -36,7 +37,8 @@ local paths = {
 	['libsfor'] = getWorkingDirectory() .. '/lib/libsfor.lua',
 	['report'] = getWorkingDirectory() .. '/QuestionAnswer.lua',
 	['upat'] = getWorkingDirectory() .. '/upat.ini',
-	['clogger'] = getWorkingDirectory() .. '/clogger.lua'
+	['clogger'] = getWorkingDirectory() .. '/clogger.lua',
+	['rdsmenu'] = getWorkingDirectory() .. '/RDSMenu.lua'
 }
 
 function downloadFile(url, path)
@@ -57,8 +59,8 @@ function downloadFile(url, path)
 	end
 end
 
-local version_control = 2
-local version_text = '1.0'
+local version_control = 3
+local version_text = '1.1'
 -- ## Контролирование версий AT. Скачивание, ссылки и директории. ## --
 
 -- ## Система конфига и переменных VARIABLE ## --
@@ -382,8 +384,12 @@ function main()
 
 	local response_update_check = downloadFile(urls['upat'], paths['upat'])
 	if response_update_check then 
+		local response = http.request(urls['main']) 
+		local currentVersionFile = io.open(paths['main'], 'r')
+		local currentVersion = currentVersionFile:read("*a")
+		currentVersionFile:close()
 		updateIni = inicfg.load(nil, paths['upat'])
-		if tonumber(updateIni.info.version) > version_control then  
+		if tonumber(updateIni.info.version) > version_control and response ~= currentVersion then  
 			if toast_ok then  
 				toast.Show(u8'Доступно обновление.\nAT начинает обновление автоматически.', toast.TYPE.INFO, 5)
 			else 
@@ -1511,10 +1517,10 @@ function cmd_dz(arg)
 		end
 	elseif arg:find('(.+)') then
 		if main_access.settings.jail then  
-        	sampSendChat("/jail " .. arg .. " 120 " .. " DM/DB in zz ")
+        	sampSendChat("/jail " .. arg .. " 300 " .. " DM/DB in zz ")
 		else 
 			sampAddChatMessage(tag .. 'Нет доступа. Отправляю форму', -1)
-			sampSendChat('/a /jail ' .. arg .. ' 120 DM/DB in zz')
+			sampSendChat('/a /jail ' .. arg .. ' 300 DM/DB in zz')
 		end
     else
         sampAddChatMessage(tag .. "Вы забыли ввести ID нарушителя! ", -1)
@@ -2590,7 +2596,7 @@ local MainWindowAT = imgui.OnFrame(
         imgui.SetNextWindowPos(imgui.ImVec2(sw / 2, sh / 2), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
         imgui.SetNextWindowSize(imgui.ImVec2(1300, 600), imgui.Cond.FirstUseEver)
 
-        imgui.Begin(fa.SERVER .. " [AT for Android]", elements.imgui.main_window, imgui.WindowFlags.NoResize) 
+        imgui.Begin(fa.SERVER .. " [AT for Android]", elements.imgui.main_window) 
 			if imgui.BeginTabBar("##MenuBar") then  
 				if imgui.BeginTabItem(fa.HOUSE .. u8" Приветствие") then  
 					imgui.Text(u8(helloText))
@@ -2637,6 +2643,8 @@ local MainWindowAT = imgui.OnFrame(
 							config.settings.autologin = elements.boolean.autologin[0]
 							save()
 						end  
+						imgui.SameLine()
+						imgui.SetCursorPosX(400)
 						imgui.Text(u8"Кастомное рекон-меню")
 						imgui.SameLine()
 						if mim_addons.ToggleButton("##CustomReconMenu", elements.boolean.recon) then  
@@ -2644,6 +2652,8 @@ local MainWindowAT = imgui.OnFrame(
 							save() 
 						end
 						ActiveAutoMute()
+						imgui.SameLine()
+						imgui.SetCursorPosX(400)
 						imgui.Text(u8"Авто-онлайн")
 						imgui.SameLine()
 						if mim_addons.ToggleButton('##AutoOnline', elements.boolean.auto_online) then  
@@ -2662,6 +2672,8 @@ local MainWindowAT = imgui.OnFrame(
 							config.settings.autoforms = elements.boolean.autoforms[0]
 							save() 
 						end; Tooltip('Принимает формы автоматически. Рекомендовано разработчиком!')
+						imgui.SameLine()
+						imgui.SetCursorPosX(400)
 						imgui.Text(u8'Вывод даты и времени')
 						imgui.SameLine()
 						if mim_addons.ToggleButton('##RenderDate', elements.boolean.render_date) then  
@@ -3074,6 +3086,15 @@ local MainWindowAT = imgui.OnFrame(
 					end 
 					imgui.EndTabItem()
 				end 
+				if imgui.BeginTabItem(fa.GEARS) then   
+					if imgui.Button(u8'Обновление функционального меню') then  
+						local response_menu = downloadFile(urls['rdsmenu'], paths['rdsmenu'])
+						if response_menu then  
+							sampAddChatMessage(tag .. 'Обновление функционального меню произошло успешно.')
+						end
+					end
+					imgui.EndTabItem()
+				end
 				imgui.EndTabBar()
 			end 
         imgui.End()
