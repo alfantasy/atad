@@ -48,7 +48,7 @@ end
 
 local version = 1
 local url_update = 'https://raw.githubusercontent.com/alfantasy/atad/main/RDSMenu.lua'
-local path_update = getWorkingDirectory() .. '/RDSMenu.lua'
+local path_update = 'RDSMenu.lua'
 -- ## Работа с конфигами и переменными ## --
 
 local elements = {
@@ -112,20 +112,18 @@ function main()
     sampAddChatMessage(tag .. 'Настроить меню можно при помощи команды /mrds', -1)
 
     local response = http.request(url_update)
-    if response then  
-        local currentVersionFile = io.open(path_update, 'r')
-        local currentVersion = currentVersionFile:read('*a')
-        currentVersionFile:close() 
-        if response ~= currentVersion then  
-            sampAddChatMessage(tag .. 'Доступно обновление RDS Menu. Обновляемся <3', -1)
-            local response_download = downloadFile(url_update, path_update)
-            if response_download then  
-                sampAddChatMessage(tag .. 'Обновление окончено. Перезагружаю скрипты :)', -1)
-                reloadScripts()
-            end
-        else 
-            sampAddChatMessage(tag .. 'Установлена актуальная версия RDS Menu. Обновление не требуется.', -1)
+    local currentVersionFile = io.open(path_update, 'r')
+    local currentVersion = currentVersionFile:read('*a')
+    currentVersionFile:close() 
+    if response and response ~= currentVersionthen  
+        sampAddChatMessage(tag .. 'Доступно обновление RDS Menu. Обновляемся <3', -1)
+        local response_download = downloadFile(url_update, path_update)
+        if response_download then  
+            sampAddChatMessage(tag .. 'Обновление окончено. Перезагружаю скрипты :)', -1)
+            reloadScripts()
         end
+    else 
+        sampAddChatMessage(tag .. 'Установлена актуальная версия RDS Menu. Обновление не требуется.', -1)
     end
 
     elements.boolean.window_menu[0] = true
