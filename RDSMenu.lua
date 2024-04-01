@@ -115,7 +115,7 @@ function main()
     local currentVersionFile = io.open(path_update, 'r')
     local currentVersion = currentVersionFile:read('*a')
     currentVersionFile:close() 
-    if response and response ~= currentVersionthen  
+    if response and response ~= currentVersion then  
         sampAddChatMessage(tag .. 'Доступно обновление RDS Menu. Обновляемся <3', -1)
         local response_download = downloadFile(url_update, path_update)
         if response_download then  
