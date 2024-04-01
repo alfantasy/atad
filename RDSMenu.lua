@@ -48,7 +48,7 @@ end
 
 local version = 1
 local url_update = 'https://raw.githubusercontent.com/alfantasy/atad/main/RDSMenu.lua'
-local path_update = 'RDSMenu.lua'
+local path_update = getWorkingDirectory() .. '/RDSMenu.lua'
 -- ## Работа с конфигами и переменными ## --
 
 local elements = {
