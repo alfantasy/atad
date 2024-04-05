@@ -376,7 +376,8 @@ local ReportsAT = imgui.OnFrame(
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Начал(а) работу по вашей жалобе! ')	
                         end
                         wait(500)
-                        sampCloseCurrentDialogWithButton(13)
+                        sampSendDialogResponse(2351, 0, 0, nil)
+                        wait(500)
                         if tonumber(id_punish) ~= nil and id_punish ~= nil then 
                             sampSendChat("/re " .. id_punish)
                         end	
@@ -396,7 +397,7 @@ local ReportsAT = imgui.OnFrame(
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Данный игрок наказан! ')	
                         end
                         wait(500)
-                        sampCloseCurrentDialogWithButton(13)
+                        sampSendDialogResponse(2351, 0, 0)
                         elements.prefix_answer[0] = false
                     end)
                 end
@@ -413,7 +414,7 @@ local ReportsAT = imgui.OnFrame(
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Уточните ID нарушителя/читера в /report ')	
                         end
                         wait(500)
-                        sampCloseCurrentDialogWithButton(13)
+                        sampSendDialogResponse(2351, 0, 0)
                         elements.prefix_answer[0] = false
                     end)
                 end	
@@ -429,7 +430,7 @@ local ReportsAT = imgui.OnFrame(
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Уточните вашу жалобу/вопрос ')	
                         end
                         wait(500)
-                        sampCloseCurrentDialogWithButton(13)
+                        sampSendDialogResponse(2351, 0, 0)
                         elements.prefix_answer[0] = false
                     end)
                 end	
@@ -446,7 +447,7 @@ local ReportsAT = imgui.OnFrame(
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Передам ваш репорт! ')	
                         end
                         wait(500)
-                        sampCloseCurrentDialogWithButton(13)
+                        sampSendDialogResponse(2351, 0, 0)
                         sampSendChat("/a " .. nick_rep .. "[" .. pid_rep .. "] | " .. text_rep)
                         elements.prefix_answer[0] = false
                     end)	
@@ -482,7 +483,7 @@ local ReportsAT = imgui.OnFrame(
                             sampSendDialogResponse(2351, 1, 0, u8:decode(settext))	
                         end
                         wait(500)
-                        sampCloseCurrentDialogWithButton(13)
+                        sampSendDialogResponse(2351, 0, 0)
                         elements.prefix_answer[0] = false
                     end)
                 end
@@ -567,7 +568,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     end
                                     elements.select_category = 0
@@ -590,7 +591,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     else
                                         lua_thread.create(function()
@@ -600,7 +601,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     end
                                     report_ans = 0
@@ -622,7 +623,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     else
                                         lua_thread.create(function()
@@ -632,7 +633,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     end
                                     report_ans = 0
@@ -654,7 +655,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     else
                                         lua_thread.create(function()
@@ -664,7 +665,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     end
                                     report_ans = 0
@@ -686,7 +687,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     else
                                         lua_thread.create(function()
@@ -696,7 +697,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     end
                                     report_ans = 0
@@ -718,7 +719,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     else
                                         lua_thread.create(function()
@@ -728,7 +729,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     end
                                     report_ans = 0
@@ -750,7 +751,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     else
                                         lua_thread.create(function()
@@ -760,7 +761,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     end
                                     report_ans = 0
@@ -782,7 +783,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     else
                                         lua_thread.create(function()
@@ -792,7 +793,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     end
                                     report_ans = 0
@@ -814,7 +815,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     else
                                         lua_thread.create(function()
@@ -824,7 +825,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     end
                                     report_ans = 0
@@ -846,7 +847,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     else
                                         lua_thread.create(function()
@@ -856,7 +857,7 @@ local ReportsAT = imgui.OnFrame(
                                         wait(200)
                                         sampSendDialogResponse(2351, 1, 0, settext)
                                         wait(200)
-                                        sampCloseCurrentDialogWithButton(13)
+                                        sampSendDialogResponse(2351, 0, 0)
                                         end)
                                     end
                                     report_ans = 0

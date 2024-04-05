@@ -59,8 +59,8 @@ function downloadFile(url, path)
 	end
 end
 
-local version_control = 4
-local version_text = '1.1'
+local version_control = 5
+local version_text = '1.2'
 -- ## Контролирование версий AT. Скачивание, ссылки и директории. ## --
 
 -- ## Система конфига и переменных VARIABLE ## --
@@ -602,6 +602,11 @@ function main()
         elements.imgui.main_window[0] = not elements.imgui.main_window[0]
         elements.imgui.menu_selectable = 0
     end)
+
+	sampRegisterChatCommand("al", function(id)
+		sampSendChat("/ans " .. id .. " Уважаемый адмиинистратор! Вы забыли ввести /alogin")
+		sampSendChat("/ans " .. id .. " Пожалуйста, введите /alogin в течении пяти минут.")
+	end)
 
 	-- ## Интегрирование автомута ## --
 	    -- ## Блок проверки на нахождение нужных файлов в рабочей папке ## --
