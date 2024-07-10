@@ -274,14 +274,26 @@ local ReportsAT = imgui.OnFrame(
         royalblue()
 
         imgui.SetNextWindowPos(imgui.ImVec2(sw / 2, sh / 2), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
-        imgui.SetNextWindowSize(imgui.ImVec2(750, 350), imgui.Cond.FirstUseEver)
+        imgui.SetNextWindowSize(imgui.ImVec2(750, 420), imgui.Cond.FirstUseEver)
 
-        imgui.Begin("##Reports Window", elements.repwindow, imgui.WindowFlags.NoTitleBar + imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove)
-            if elements.select_menu == 1 then  
-                if imgui.Button(u8"Вернуться в окно репорта") then  
-                    elements.select_menu = 0 
+        imgui.Begin("##Reports Window", elements.repwindow, imgui.WindowFlags.NoTitleBar + imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove + imgui.WindowFlags.MenuBar)
+            imgui.BeginMenuBar()
+                imgui.PushStyleVarVec2(imgui.StyleVar.ButtonTextAlign, imgui.ImVec2(0.5,0.5))
+                imgui.PushStyleVarFloat(imgui.StyleVar.FrameRounding, 10)
+                if imgui.Button(fa.BELL .. '##BackWind', imgui.ImVec2(50, 0)) then     
+                    elements.select_menu = 0
                 end 
-            end 
+                imgui.Spacing()
+                imgui.Text(u8('     Текст репорта: ' .. u8:decode(rep_text)))
+                imgui.PopStyleVar(1)
+                imgui.PopStyleVar(1)
+                imgui.SetCursorPosX((imgui.GetWindowWidth() - 100))
+                if elements.select_menu == 1 or elements.select_menu == 2 then  
+                    if imgui.Button(fa.ARROW_LEFT .. '##BackButton', imgui.ImVec2(50,0)) then  
+                        elements.select_menu = 0
+                    end
+                end
+            imgui.EndMenuBar()
             if elements.select_menu == 0 then
                 imgui.StrCopy(elements.prefix_for_answer, u8(config.main.prefix_for_answer))
                 if (nick_rep and pid_rep and rep_text) then  
@@ -364,7 +376,8 @@ local ReportsAT = imgui.OnFrame(
                     imgui.EndPopup()
                 end
                 imgui.Separator()
-                if imgui.Button(fa.EYE .. u8" Работа по жб") then  
+                imgui.PushStyleVarVec2(imgui.StyleVar.ButtonTextAlign , imgui.ImVec2(0.5, 0.5))
+                if imgui.Button(fa.EYE .. u8" Работа по жб", imgui.ImVec2(250,30)) then  
                     lua_thread.create(function()
                         sampSendDialogResponse(2349, 1, 0)
                         wait(500)
@@ -381,11 +394,11 @@ local ReportsAT = imgui.OnFrame(
                         if tonumber(id_punish) ~= nil and id_punish ~= nil then 
                             sampSendChat("/re " .. id_punish)
                         end	
-                        elements.prefix_answer[0] = false
+                        elements.repwindow[0] = false
                     end)
                 end
                 imgui.SameLine()
-                if imgui.Button(fa.BAN .. u8" Наказан") then  
+                if imgui.Button(fa.BAN .. u8" Наказан", imgui.ImVec2(250,30)) then  
                     lua_thread.create(function() 
                         sampSendDialogResponse(2349, 1, 0)
                         wait(500)
@@ -398,11 +411,11 @@ local ReportsAT = imgui.OnFrame(
                         end
                         wait(500)
                         sampSendDialogResponse(2351, 0, 0)
-                        elements.prefix_answer[0] = false
+                        elements.repwindow[0] = false
                     end)
                 end
                 imgui.SameLine()
-                if imgui.Button(fa.COMMENT .. u8" Уточните ID") then  
+                if imgui.Button(fa.COMMENT .. u8" Уточните ID", imgui.ImVec2(250,30)) then  
                     lua_thread.create(function()
                         sampSendDialogResponse(2349, 1, 0)
                         wait(500)
@@ -415,10 +428,10 @@ local ReportsAT = imgui.OnFrame(
                         end
                         wait(500)
                         sampSendDialogResponse(2351, 0, 0)
-                        elements.prefix_answer[0] = false
+                        elements.repwindow[0] = false
                     end)
                 end	
-                if imgui.Button(fa.CIRCLE_INFO .. u8" Уточните жб") then  
+                if imgui.Button(fa.CIRCLE_INFO .. u8" Уточните жб", imgui.ImVec2(250,30)) then  
                     lua_thread.create(function()
                         sampSendDialogResponse(2349, 1, 0)
                         wait(500)
@@ -431,11 +444,96 @@ local ReportsAT = imgui.OnFrame(
                         end
                         wait(500)
                         sampSendDialogResponse(2351, 0, 0)
-                        elements.prefix_answer[0] = false
+                        elements.repwindow[0] = false
                     end)
                 end	
                 imgui.SameLine()
-                if imgui.Button(fa.CIRCLE_CHECK .. u8" Передать жалобу ##SEND") then  
+                if imgui.Button(fa.SHARE .. u8' Жб на админа', imgui.ImVec2(250,30)) then
+                    lua_thread.create(function()
+                        sampSendDialogResponse(2349, 1, 0)
+                        wait(500)
+                        sampSendDialogResponse(2350, 1, 0)
+                        wait(200)
+                        if elements.prefix_answer[0] then
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Пишите жалобу на администратора на форум https://forumrds.ru '.. u8:decode(config.main.prefix_for_answer))
+                        else
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Пишите жалобу на администратора на форум https://forumrds.ru ')
+                        end
+                        wait(500)
+                        sampSendDialogResponse(2351, 0, 0)
+                        elements.repwindow[0] = false
+                    end)
+                end
+                imgui.SameLine()
+                if imgui.Button(fa.SHARE .. u8" Жб на игрока", imgui.ImVec2(250,30)) then
+                    lua_thread.create(function()
+                        sampSendDialogResponse(2349, 1, 0)
+                        wait(500)
+                        sampSendDialogResponse(2350, 1, 0)
+                        wait(500)
+                        if elements.prefix_answer.v then
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Пишите жалобу на игрока на форум https://forumrds.ru '.. u8:decode(config.main.prefix_for_answer))
+                        else
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Пишите жалобу на игрока на форум https://forumrds.ru ')
+                        end
+                        wait(500)
+                        sampSendDialogResponse(2351, 0, 0)
+                        elements.repwindow[0] = false
+                    end) 
+                end
+                if imgui.Button(fa.CIRCLE_INFO .. u8' Баг на сервере', imgui.ImVec2(250,30)) then
+                    lua_thread.create(function()
+                        sampSendDialogResponse(2349, 1, 0)
+                        wait(500)
+                        sampSendDialogResponse(2350, 1, 0)
+                        wait(200)
+                        if elements.prefix_answer[0] then
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Напишите в тех.раздел на форуме https://forumrds.ru '.. u8:decode(config.main.prefix_for_answer))
+                        else
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Напишите в тех.раздел на форуме https://forumrds.ru')
+                        end
+                        wait(500)
+                        sampSendDialogResponse(2351, 0, 0)
+                        elements.repwindow[0] = false
+                    end)
+                end
+                imgui.SameLine()
+                if imgui.Button(fa.TOGGLE_OFF .. u8' Не в сети', imgui.ImVec2(250,30)) then
+                    lua_thread.create(function()
+                        sampSendDialogResponse(2349, 1, 0)
+                        wait(500)
+                        sampSendDialogResponse(2350, 1, 0)
+                        wait(500)
+                        if elements.prefix_answer[0] then
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Игрок не в сети. '.. u8:decode(config.main.prefix_for_answer))
+                        else
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Игрок не в сети. ')
+                        end
+                        wait(500)
+                        sampSendDialogResponse(2351, 0, 0)
+                        elements.repwindow[0] = false
+                    end)
+                end
+                imgui.SameLine()
+                if imgui.Button(fa.CLOCK .. u8' Чист/нет наруш.', imgui.ImVec2(250,30)) then  
+                    lua_thread.create(function()
+                        sampSendDialogResponse(2349, 1, 0)
+                        wait(500)
+                        sampSendDialogResponse(2350, 1, 0)
+                        wait(500)
+                        if elements.prefix_answer[0] then
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Не вижу нарушений со стороны игрока. '.. u8:decode(config.main.prefix_for_answer))
+                        else
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Не вижу нарушений со стороны игрока. ')
+                        end
+                        wait(500)
+                        sampSendDialogResponse(2351, 0, 0)
+                        elements.repwindow[0] = false
+                    end)
+                end
+                imgui.Separator()
+                imgui.SetCursorPosX(imgui.GetWindowWidth() - 600)
+                if imgui.Button(fa.CIRCLE_CHECK .. u8" Передать жалобу ##SEND", imgui.ImVec2(400,30)) then  
                     lua_thread.create(function()
                         sampSendDialogResponse(2349, 1, 0)
                         wait(500)
@@ -449,16 +547,19 @@ local ReportsAT = imgui.OnFrame(
                         wait(500)
                         sampSendDialogResponse(2351, 0, 0)
                         sampSendChat("/a " .. nick_rep .. "[" .. pid_rep .. "] | " .. text_rep)
-                        elements.prefix_answer[0] = false
+                        elements.repwindow[0] = false
                     end)	
                 end
-                if imgui.Button(fa.CIRCLE_QUESTION .. u8" Ответы от AT") then  
+                imgui.Separator()
+                imgui.SetCursorPosX(imgui.GetWindowWidth() - 675)
+                if imgui.Button(fa.CIRCLE_QUESTION .. u8" Ответы от AT", imgui.ImVec2(300,30)) then  
                     elements.select_menu = 1
                 end
                 imgui.SameLine()
-                if imgui.Button(fa.CODE .. u8" Сохраненные ответы") then  
+                if imgui.Button(fa.CODE .. u8" Сохраненные ответы", imgui.ImVec2(300,30)) then  
                     elements.select_menu = 2
                 end
+                imgui.Separator()
                 if imgui.Checkbox(u8"Пожелание в ответ", elements.prefix_answer) then 
                     config.main.prefix_answer = elements.prefix_answer[0]
                     save()
@@ -484,7 +585,7 @@ local ReportsAT = imgui.OnFrame(
                         end
                         wait(500)
                         sampSendDialogResponse(2351, 0, 0)
-                        elements.prefix_answer[0] = false
+                        elements.repwindow[0] = false
                     end)
                 end
                 imgui.SameLine()
@@ -495,7 +596,7 @@ local ReportsAT = imgui.OnFrame(
                         sampSendDialogResponse(2350, 1, 1)
                         wait(500)
                         sampSendDialogResponse(2351, 0, 0)
-                        elements.prefix_answer[0] = false
+                        elements.repwindow[0] = false
                     end)
                 end
                 imgui.SameLine()
@@ -505,12 +606,13 @@ local ReportsAT = imgui.OnFrame(
                         sampSendDialogResponse(2349, 0, 0)
                         wait(500)
                         sampSendDialogResponse(2348, 0, 0)
-                        elements.prefix_answer[0] = false
+                        elements.repwindow[0] = false
                     end)
                 end
+                imgui.PopStyleVar(1)
             end  
             if elements.select_menu == 1 then  
-                imgui.BeginChild("##menuSecond", imgui.ImVec2(250, 275), true)
+                imgui.BeginChild("##menuSecond", imgui.ImVec2(250, 380), true)
                 if imgui.Button(fa.OBJECT_GROUP .. u8" На кого-то/что-то") then  -- reporton key
                     elements.select_category = 1  
                 end	
@@ -547,7 +649,7 @@ local ReportsAT = imgui.OnFrame(
                 end	
                 imgui.EndChild()
                 imgui.SameLine()
-                imgui.BeginChild("##menuSelectable", imgui.ImVec2(450, 275), true)
+                imgui.BeginChild("##menuSelectable", imgui.ImVec2(460, 380), true)
                 if elements.select_category == 0 then  
                     imgui.Text(u8"Заготовленные/сохраненные ответы \nтакого типа меняются \nтолько разработчиками")
                 end	
@@ -1081,71 +1183,80 @@ function SendBindReport(value)
 end
 
 function EXPORTS.BinderEdit()
-    imgui.BeginChild('##ListBinders', imgui.ImVec2(400, 480), true)
-        if #config.bind_name > 0 then  
-            for key, name in pairs(config.bind_name) do 
-                if imgui.Button(name.. '##' ..key) then  
-                    EditOldBind = true  
-                    getpos = key  
-                    local returnwrapped = tostring(config.bind_text[key]):gsub('~', '\n')
-                    imgui.StrCopy(elements.binder_text, returnwrapped)
-                    imgui.StrCopy(elements.binder_name, tostring(config.bind_name[key]))
-                end
-                imgui.SameLine()
-                if imgui.Button(fa.TRASH.. "##"..key) then  
-                    sampAddChatMessage(tag .. 'Бинд "' ..u8:decode(config.bind_name[key]) .. '" удален!', -1)
-                    table.remove(config.bind_name, key)
-                    table.remove(config.bind_text, key) 
-                    inicfg.save(config, directIni)
-                end  
+    if imgui.Button(u8'Открыть окно взаимодействия с биндером.') then  
+        imgui.OpenPopup('BinderEditEx')
+    end
+    if imgui.BeginPopupModal('BinderEditEx', _, imgui.WindowFlags.AlwaysAutoResize + imgui.WindowFlags.NoResize) then
+        imgui.BeginChild('##ListBinders', imgui.ImVec2(200, 480), true)
+            if #config.bind_name > 0 then  
+                for key, name in pairs(config.bind_name) do 
+                    if imgui.Button(name.. '##' ..key) then  
+                        EditOldBind = true  
+                        getpos = key  
+                        local returnwrapped = tostring(config.bind_text[key]):gsub('~', '\n')
+                        imgui.StrCopy(elements.binder_text, returnwrapped)
+                        imgui.StrCopy(elements.binder_name, tostring(config.bind_name[key]))
+                    end
+                    imgui.SameLine()
+                    if imgui.Button(fa.TRASH.. "##"..key) then  
+                        sampAddChatMessage(tag .. 'Бинд "' ..u8:decode(config.bind_name[key]) .. '" удален!', -1)
+                        table.remove(config.bind_name, key)
+                        table.remove(config.bind_text, key) 
+                        inicfg.save(config, directIni)
+                    end  
+                end 
             end 
-        end 
-    imgui.EndChild()
-    imgui.SameLine()
-    imgui.BeginChild("##EditBinder", imgui.ImVec2(850, 480), true)
-        imgui.Text(u8'Название бинда:'); imgui.SameLine()
-        imgui.PushItemWidth(130)
-        imgui.InputText("##elements.binder_name", elements.binder_name, ffi.sizeof(elements.binder_name))
-        imgui.PopItemWidth()
-        imgui.PushItemWidth(100)
-        imgui.Separator()
-        imgui.Text(u8'Текст бинда:')
-        imgui.PushItemWidth(300)
-        imgui.InputTextMultiline("##elements.binder_text", elements.binder_text, ffi.sizeof(elements.binder_text), imgui.ImVec2(-1, 110))
-        imgui.PopItemWidth()
-
-        imgui.SetCursorPosX((imgui.GetWindowWidth() - 100) / 100)
-        if imgui.Button(u8'Закрыть##bind1', imgui.ImVec2(100,30)) then
-            imgui.StrCopy(elements.binder_name, '')
-            imgui.StrCopy(elements.binder_text, '')
-        end
+        imgui.EndChild()
         imgui.SameLine()
-        if #ffi.string(elements.binder_name) > 0 and #ffi.string(elements.binder_text) > 0 then
-            imgui.SetCursorPosX((imgui.GetWindowWidth() - 100) / 1.01)
-            if imgui.Button(u8'Сохранить##bind1', imgui.ImVec2(100,30)) then
-                if not EditOldBind then
-                    local refresh_text = ffi.string(elements.binder_text):gsub("\n", "~")
-                    table.insert(config.bind_name, ffi.string(elements.binder_name))
-                    table.insert(config.bind_text, refresh_text)
-                    if save() then
-                        sampAddChatMessage(tag .. 'Бинд"' ..u8:decode(ffi.string(elements.binder_name)).. '" успешно создан!', -1)
-                        imgui.StrCopy(elements.binder_name, '')
-                        imgui.StrCopy(elements.binder_text, '')
+        imgui.BeginChild("##EditBinder", imgui.ImVec2(500, 480), true)
+            imgui.Text(u8'Название бинда:'); imgui.SameLine()
+            imgui.PushItemWidth(130)
+            imgui.InputText("##elements.binder_name", elements.binder_name, ffi.sizeof(elements.binder_name))
+            imgui.PopItemWidth()
+            imgui.PushItemWidth(100)
+            imgui.Separator()
+            imgui.Text(u8'Текст бинда:')
+            imgui.PushItemWidth(300)
+            imgui.InputTextMultiline("##elements.binder_text", elements.binder_text, ffi.sizeof(elements.binder_text), imgui.ImVec2(-1, 110))
+            imgui.PopItemWidth()
+
+            imgui.SetCursorPosX((imgui.GetWindowWidth() - 100) / 100)
+            if imgui.Button(u8'Закрыть##bind1', imgui.ImVec2(100,30)) then
+                imgui.StrCopy(elements.binder_name, '')
+                imgui.StrCopy(elements.binder_text, '')
+            end
+            imgui.SameLine()
+            if #ffi.string(elements.binder_name) > 0 and #ffi.string(elements.binder_text) > 0 then
+                imgui.SetCursorPosX((imgui.GetWindowWidth() - 100) / 1.01)
+                if imgui.Button(u8'Сохранить##bind1', imgui.ImVec2(100,30)) then
+                    if not EditOldBind then
+                        local refresh_text = ffi.string(elements.binder_text):gsub("\n", "~")
+                        table.insert(config.bind_name, ffi.string(elements.binder_name))
+                        table.insert(config.bind_text, refresh_text)
+                        if save() then
+                            sampAddChatMessage(tag .. 'Бинд"' ..u8:decode(ffi.string(elements.binder_name)).. '" успешно создан!', -1)
+                            imgui.StrCopy(elements.binder_name, '')
+                            imgui.StrCopy(elements.binder_text, '')
+                        end
+                    else
+                        local refresh_text = ffi.string(elements.binder_text):gsub("\n", "~")
+                        table.insert(config.bind_name, getpos, ffi.string(elements.binder_name))
+                        table.insert(config.bind_text, getpos, refresh_text)
+                        table.remove(config.bind_name, getpos + 1)
+                        table.remove(config.bind_text, getpos + 1)
+                        if save() then
+                            sampAddChatMessage(tag .. 'Бинд"' ..u8:decode(ffi.string(elements.binder_name)).. '" успешно отредактирован!', -1)
+                            imgui.StrCopy(elements.binder_name, '')
+                            imgui.StrCopy(elements.binder_text, '')
+                        end
+                        EditOldBind = false
                     end
-                else
-                    local refresh_text = ffi.string(elements.binder_text):gsub("\n", "~")
-                    table.insert(config.bind_name, getpos, ffi.string(elements.binder_name))
-                    table.insert(config.bind_text, getpos, refresh_text)
-                    table.remove(config.bind_name, getpos + 1)
-                    table.remove(config.bind_text, getpos + 1)
-                    if save() then
-                        sampAddChatMessage(tag .. 'Бинд"' ..u8:decode(ffi.string(elements.binder_name)).. '" успешно отредактирован!', -1)
-                        imgui.StrCopy(elements.binder_name, '')
-                        imgui.StrCopy(elements.binder_text, '')
-                    end
-                    EditOldBind = false
                 end
             end
+        imgui.EndChild()
+        if imgui.Button(u8'Закрыть окно', imgui.ImVec2(750, 30)) then  
+            imgui.CloseCurrentPopup()
         end
-    imgui.EndChild()
+        imgui.End()
+    end
 end
