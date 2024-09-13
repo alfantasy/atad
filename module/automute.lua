@@ -813,9 +813,6 @@ end
 
 function EXPORTS.ReadWriteAM()
     imgui.BeginChild('##MenuRWAMF', imgui.ImVec2(200, 310), true)
-        imgui.Text(u8"Ниже представлен список файлов \nв виде кнопок.\nДля выбора файла, \nнажмите на кнопку.")
-        imgui.Text('')
-        imgui.Separator()
         if imgui.Button(u8"Мат") then  
             elements.imgui.selectable = 1
         end  
