@@ -295,7 +295,7 @@ local ReportsAT = imgui.OnFrame(
                 end
             imgui.EndMenuBar()
             if elements.select_menu == 0 then
-                imgui.StrCopy(elements.prefix_for_answer, u8(config.main.prefix_for_answer))
+                imgui.StrCopy(elements.prefix_for_answer, config.main.prefix_for_answer)
                 if (nick_rep and pid_rep and rep_text) then  
                     imgui.Text(u8"Жалоба от: "); imgui.SameLine()
                     imgui.Text(nick_rep); ToClipboard(nick_rep); imgui.SameLine();
@@ -455,7 +455,7 @@ local ReportsAT = imgui.OnFrame(
                         sampSendDialogResponse(2350, 1, 0)
                         wait(200)
                         if elements.prefix_answer[0] then
-                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Пишите жалобу на администратора на форум https://forumrds.ru '.. u8:decode(config.main.prefix_for_answer))
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Пишите жалобу на администратора на форум https://forumrds.ru '.. u8:decode(u8(config.main.prefix_for_answer)))
                         else
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Пишите жалобу на администратора на форум https://forumrds.ru ')
                         end
@@ -472,7 +472,7 @@ local ReportsAT = imgui.OnFrame(
                         sampSendDialogResponse(2350, 1, 0)
                         wait(500)
                         if elements.prefix_answer.v then
-                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Пишите жалобу на игрока на форум https://forumrds.ru '.. u8:decode(config.main.prefix_for_answer))
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Пишите жалобу на игрока на форум https://forumrds.ru '.. u8:decode(u8(config.main.prefix_for_answer)))
                         else
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Пишите жалобу на игрока на форум https://forumrds.ru ')
                         end
@@ -488,7 +488,7 @@ local ReportsAT = imgui.OnFrame(
                         sampSendDialogResponse(2350, 1, 0)
                         wait(200)
                         if elements.prefix_answer[0] then
-                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Напишите в тех.раздел на форуме https://forumrds.ru '.. u8:decode(config.main.prefix_for_answer))
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Напишите в тех.раздел на форуме https://forumrds.ru '.. u8:decode(u8(config.main.prefix_for_answer)))
                         else
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Напишите в тех.раздел на форуме https://forumrds.ru')
                         end
@@ -505,7 +505,7 @@ local ReportsAT = imgui.OnFrame(
                         sampSendDialogResponse(2350, 1, 0)
                         wait(500)
                         if elements.prefix_answer[0] then
-                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Игрок не в сети. '.. u8:decode(config.main.prefix_for_answer))
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Игрок не в сети. '.. u8:decode(u8(config.main.prefix_for_answer)))
                         else
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Игрок не в сети. ')
                         end
@@ -522,7 +522,7 @@ local ReportsAT = imgui.OnFrame(
                         sampSendDialogResponse(2350, 1, 0)
                         wait(500)
                         if elements.prefix_answer[0] then
-                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Не вижу нарушений со стороны игрока. '.. u8:decode(config.main.prefix_for_answer))
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Не вижу нарушений со стороны игрока. '.. u8:decode(u8(config.main.prefix_for_answer)))
                         else
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Не вижу нарушений со стороны игрока. ')
                         end
@@ -664,7 +664,7 @@ local ReportsAT = imgui.OnFrame(
                                         end)
                                     else
                                         lua_thread.create(function()
-                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(u8(config.main.prefix_for_answer))
+                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(config.main.prefix_for_answer)
                                         sampSendDialogResponse(2349, 1, 0)
                                         sampSendDialogResponse(2350, 1, 0)
                                         wait(200)
@@ -697,7 +697,7 @@ local ReportsAT = imgui.OnFrame(
                                         end)
                                     else
                                         lua_thread.create(function()
-                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(u8(config.main.prefix_for_answer))
+                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(config.main.prefix_for_answer)
                                         sampSendDialogResponse(2349, 1, 0)
                                         sampSendDialogResponse(2350, 1, 0)
                                         wait(200)
@@ -729,7 +729,7 @@ local ReportsAT = imgui.OnFrame(
                                         end)
                                     else
                                         lua_thread.create(function()
-                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(u8(config.main.prefix_for_answer))
+                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(config.main.prefix_for_answer)
                                         sampSendDialogResponse(2349, 1, 0)
                                         sampSendDialogResponse(2350, 1, 0)
                                         wait(200)
@@ -761,7 +761,7 @@ local ReportsAT = imgui.OnFrame(
                                         end)
                                     else
                                         lua_thread.create(function()
-                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(u8(config.main.prefix_for_answer))
+                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(config.main.prefix_for_answer)
                                         sampSendDialogResponse(2349, 1, 0)
                                         sampSendDialogResponse(2350, 1, 0)
                                         wait(200)
@@ -793,7 +793,7 @@ local ReportsAT = imgui.OnFrame(
                                         end)
                                     else
                                         lua_thread.create(function()
-                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(u8(config.main.prefix_for_answer))
+                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(config.main.prefix_for_answer)
                                         sampSendDialogResponse(2349, 1, 0)
                                         sampSendDialogResponse(2350, 1, 0)
                                         wait(200)
@@ -825,7 +825,7 @@ local ReportsAT = imgui.OnFrame(
                                         end)
                                     else
                                         lua_thread.create(function()
-                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(u8(config.main.prefix_for_answer))
+                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(config.main.prefix_for_answer)
                                         sampSendDialogResponse(2349, 1, 0)
                                         sampSendDialogResponse(2350, 1, 0)
                                         wait(200)
@@ -857,7 +857,7 @@ local ReportsAT = imgui.OnFrame(
                                         end)
                                     else
                                         lua_thread.create(function()
-                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(u8(config.main.prefix_for_answer))
+                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(config.main.prefix_for_answer)
                                         sampSendDialogResponse(2349, 1, 0)
                                         sampSendDialogResponse(2350, 1, 0)
                                         wait(200)
@@ -889,7 +889,7 @@ local ReportsAT = imgui.OnFrame(
                                         end)
                                     else
                                         lua_thread.create(function()
-                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(u8(config.main.prefix_for_answer))
+                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(config.main.prefix_for_answer)
                                         sampSendDialogResponse(2349, 1, 0)
                                         sampSendDialogResponse(2350, 1, 0)
                                         wait(200)
@@ -921,7 +921,7 @@ local ReportsAT = imgui.OnFrame(
                                         end)
                                     else
                                         lua_thread.create(function()
-                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(u8(config.main.prefix_for_answer))
+                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(config.main.prefix_for_answer)
                                         sampSendDialogResponse(2349, 1, 0)
                                         sampSendDialogResponse(2350, 1, 0)
                                         wait(200)
@@ -953,7 +953,7 @@ local ReportsAT = imgui.OnFrame(
                                         end)
                                     else
                                         lua_thread.create(function()
-                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(u8(config.main.prefix_for_answer))
+                                        local settext = '{FFFFFF}' .. v_2 .. ' ' .. color() .. u8:decode(config.main.prefix_for_answer)
                                         sampSendDialogResponse(2349, 1, 0)
                                         sampSendDialogResponse(2350, 1, 0)
                                         wait(200)
