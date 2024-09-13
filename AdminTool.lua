@@ -17,6 +17,7 @@ local atlibs = require 'libsfor' -- инициализация библиотеки InfoSecurity для AT
 local toast_ok, toast = pcall(import, 'lib/mimtoasts.lua') -- интеграция уведомлений.
 local question_ok, QuestionAnswer = pcall(import, 'QuestionAnswer.lua') -- одновременная интеграция редакции файлов
 local automute_ok, AutoMuteLib = pcall(import, 'module/automute.lua') -- интеграция автомута
+local other_ok, plother = pcall(import, 'module/other.lua') -- интеграция дополнительных функций
 encoding.default = 'CP1251' -- смена кодировки на CP1251
 u8 = encoding.UTF8 -- объявление кодировки U8 как рабочую, но в форме переменной (для интерфейса)
 
@@ -62,8 +63,8 @@ function downloadFile(url, path)
 	end
 end
 
-local version_control = 6
-local version_text = '2.0 Beta'
+local version_control = 7
+local version_text = '2.1'
 -- ## Контролирование версий AT. Скачивание, ссылки и директории. ## --
 
 -- ## Система конфига и переменных VARIABLE ## --
@@ -152,7 +153,7 @@ inicfg.save(main_access, access_file)
 
 -- ## mimgui ## --
 function Tooltip(text)
-    if imgui.IsItemHovered() then
+    if imgui.IsItemClicked() then
         imgui.BeginTooltip()
         imgui.Text(u8(text))
         imgui.EndTooltip()
@@ -171,7 +172,7 @@ local sw, sh = getScreenResolution()
 
 -- ## Блок переменных связанных с CustomReconMenu ## --
 local info_to_player = {}
-local recon_info = { "Здоровье: ", "Броня: ", "ХП машины: ", "Скорость: ", "Пинг: ", "Патроны: ", "Выстрел: ", "Тайминг выстрела: ", "Время в АФК: ", "P.Loss: ", "Уровень VIP: ", "Пассивный режим: ", "Турбо-режим: ", "Коллизия: "}
+local recon_info = { "Здоровье: ", "Броня: ", "ХП машины: ", "Скорость: ", "Пинг: ", "Патроны: ", "Выстрел: ", "Тайминг выстрела: ", "Время в АФК: ", "P.Loss: ", "Уровень VIP: ", "Пассивный режим: ", "Турбо-режим: ", "Коллизия: ", 'Дрифт-мод: '}
 local right_recon = new.bool(true)
 local accept_load_recon = false 
 local recon_id = -1
@@ -184,6 +185,9 @@ for i = 190, 236 do
 end
 local refresh_button_textdraw = 0
 local info_textdraw_recon = 0
+
+local select_recon = 0 
+local recon_punish = 0
 -- ## Блок переменных связанных с CustomReconMenu ## --
 
 local reasons = { 
@@ -436,19 +440,13 @@ function cmd_u(arg)
 end  
 
 function cmd_uu(arg)
-    lua_thread.create(function()
-        sampSendChat("/unmute " .. arg)
-        
-        sampSendChat("/ans " .. arg .. " Извиняемся за ошибку, наказание снято. Приятной игры")
-    end)
+    sampSendChat("/unmute " .. arg)
+    sampSendChat("/ans " .. arg .. " Извиняемся за ошибку, наказание снято. Приятной игры")
 end
 
 function cmd_uj(arg)
-    lua_thread.create(function()
-        sampSendChat("/unjail " .. arg)
-        
-        sampSendChat("/ans " .. arg .. " Извиняемся за ошибку, наказание снято. Приятной игры")
-    end)
+    sampSendChat("/unjail " .. arg)
+    sampSendChat("/ans " .. arg .. " Извиняемся за ошибку, наказание снято. Приятной игры")
 end
 
 function cmd_stw(arg)
@@ -460,10 +458,8 @@ function cmd_as(arg)
 end
 
 function cmd_ru(arg)
-    lua_thread.create(function()
-	    sampSendChat("/unrmute " .. arg)
-	    sampSendChat("/ans " .. arg .. " Извиняемся за ошибку, наказание снято. Приятной игры.")
-    end)
+	sampSendChat("/unrmute " .. arg)
+	sampSendChat("/ans " .. arg .. " Извиняемся за ошибку, наказание снято. Приятной игры.")
 end
 -- ## Блок функций к вспомогательным командам ## --
 
@@ -538,24 +534,33 @@ function sampev.onServerMessage(color, text)
 	if elements.boolean.adminforms[0] and lc_text ~= nil then
 		for k, v in ipairs(reasons) do  
 			if lc_text:match(v) ~= nil then  
-				adm_form = lc_text .. ' // ' .. lc_nick  
-				toast.Show(u8'Пришла форма! \n /fac - принять | /fn - отклонить', toast.TYPE.INFO, 5)
-				sampAddChatMessage(tag .. 'Форма: ' .. adm_form, -1)
-				if elements.boolean.autoforms[0] and not isGamePaused() and not isPauseMenuActive() then  
-					lua_thread.create(function()
-						sampSendChat('/a AT - Форма принята!')
-						wait(500)
-						sampSendChat(''..adm_form)
-						adm_form = ''
-					end) 
-				elseif not isGamePaused() and not isPauseMenuActive() then  
-					start_forms()
-				end 
+				if lc_text:find("/(.+) (%d+) (%d+) (.+)") or lc_text:find('/(.+) (.+) (%d+) (.+)') then  
+					if lc_text:find(lc_nick) then  
+						adm_form = lc_text 
+					else 
+						adm_form = lc_text .. ' // ' .. lc_nick  
+					end 
+				else 
+					adm_form = ''
+				end
+				if #adm_form > 1 then 
+					toast.Show(u8'Пришла форма! \n /fac - принять | /fn - отклонить', toast.TYPE.INFO, 5)
+					sampAddChatMessage(tag .. 'Форма: ' .. adm_form, -1)
+					if elements.boolean.autoforms[0] and not isGamePaused() and not isPauseMenuActive() then  
+						lua_thread.create(function()
+							sampSendChat('/a AT - Форма принята!')
+							wait(500)
+							sampSendChat(''..adm_form)
+							adm_form = ''
+						end) 
+					elseif not isGamePaused() and not isPauseMenuActive() then  
+						start_forms()
+					end 
+				end
 			end 
 		end 
 	end 
 	-- ## Работа с формами. Функция находится в полноценном тестировании.
-
 
 	local check_nick, check_id, basic_color, check_text = string.match(text, "(.+)%((.+)%): {(.+)}(.+)") -- захват основной строчки чата и разбития её на объекты
 end
@@ -614,6 +619,7 @@ function sampev.onSendCommand(command)
 			control_to_player = false  
 			elements.imgui.recon_window[0] = false  
 			recon_id = -1
+			select_recon = 0
 		end
 	end
 end
@@ -622,34 +628,34 @@ end
 -- ## Ивент, отвечающий за диалоги. В частности, здесь полностью прописан захват доступов от команд.
 function sampev.onShowDialog(id, style, title, button1, button2, text)
 	if title:find(atlibs.getMyNick()) and id == 8991 then  
-		lua_thread.create(function()
-		text = atlibs.textSplit(text, '\n')
-		newtext = nil 
-		for i, v in ipairs(text) do  
-			if v:find('Все виды банов') and v:find('Имеется') then  
-				main_access.settings.ban = true
-				inicfg.save(main_access, access_file)
-			elseif v:find('Выдачу мута') and v:find('Имеется') then  
-				main_access.settings.mute = true
-				inicfg.save(main_access, access_file)
-			elseif v:find('Выдачу тюрьмы') and v:find('Имеется') then  
-				main_access.settings.jail = true
-				inicfg.save(main_access, access_file)
+			lua_thread.create(function()
+			text = atlibs.textSplit(text, '\n')
+			newtext = nil 
+			for i, v in ipairs(text) do  
+				if v:find('Все виды банов') and v:find('Имеется') then  
+					main_access.settings.ban = true
+					inicfg.save(main_access, access_file)
+				elseif v:find('Выдачу мута') and v:find('Имеется') then  
+					main_access.settings.mute = true
+					inicfg.save(main_access, access_file)
+				elseif v:find('Выдачу тюрьмы') and v:find('Имеется') then  
+					main_access.settings.jail = true
+					inicfg.save(main_access, access_file)
+				end
+				if v:find('Все виды банов') and v:find('Отсутствует') then  
+					main_access.settings.ban = false
+					inicfg.save(main_access, access_file)
+				elseif v:find('Выдачу мута') and v:find('Отсутствует') then  
+					main_access.settings.mute = false
+					inicfg.save(main_access, access_file)
+				elseif v:find('Выдачу тюрьмы') and v:find('Отсутствует') then  
+					main_access.settings.jail = false
+					inicfg.save(main_access, access_file)
+				end
 			end
-			if v:find('Все виды банов') and v:find('Отсутствует') then  
-				main_access.settings.ban = false
-				inicfg.save(main_access, access_file)
-			elseif v:find('Выдачу мута') and v:find('Отсутствует') then  
-				main_access.settings.mute = false
-				inicfg.save(main_access, access_file)
-			elseif v:find('Выдачу тюрьмы') and v:find('Отсутствует') then  
-				main_access.settings.jail = false
-				inicfg.save(main_access, access_file)
-			end
-		end
-		sampAddChatMessage(tag .. '/access просканирован. Для просмотра своих /access, выключите повторный сканинг в настройках.', -1)
-		wait(1)
-		sampSendDialogResponse(8991, 0, -1)
+			sampAddChatMessage(tag .. '/access просканирован. Для просмотра своих /access, выключите повторный сканинг в настройках.', -1)
+			wait(1)
+			sampSendDialogResponse(8991, 0, -1)
 		end)
 	end
 end
@@ -709,75 +715,175 @@ local ReconWindow = imgui.OnFrame(
         
         royalblue()
 
-        imgui.SetNextWindowPos(imgui.ImVec2(sw / 6, sh / 2), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
+        imgui.SetNextWindowPos(imgui.ImVec2(sw / 3, sh / 1), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
         imgui.SetNextWindowSize(imgui.ImVec2(100, 300), imgui.Cond.FirstUseEver)
 
         imgui.LockPlayer = false  
 
         imgui.Begin("reconmenu", elements.imgui.recon_window, imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoTitleBar + imgui.WindowFlags.AlwaysAutoResize + imgui.WindowFlags.NoResize)
             if control_to_player then  
-                
                 if imgui.Button(u8"Заспавнить") then  
                     sampSendChat('/aspawn ' .. recon_id)
                 end
+				imgui.SameLine()
                 if imgui.Button(u8"Обновить") then  
                     -- sampSendClickTextdraw(156)
 					sampSendClickTextdraw(refresh_button_textdraw)
                 end
+				imgui.SameLine()
                 if imgui.Button(u8"Слапнуть") then  
                     sampSendChat("/slap " .. recon_id)
                 end
+				imgui.SameLine()
                 if imgui.Button(u8"Заморозить\nРазморозить") then  
                     sampSendChat("/freeze " .. recon_id)
                 end
+				imgui.SameLine()
                 if imgui.Button(u8"Выйти") then
                     sampSendChat("/reoff ")
                     control_to_player = false
                     elements.imgui.recon_window[0] = false
                 end
+				imgui.SetCursorPosX(100)
+				if imgui.Button(u8"Посадить") then  
+					select_recon = 1 
+					recon_punish = 1
+				end
+				imgui.SameLine()
+				if imgui.Button(u8"Забанить") then  
+					select_recon = 1
+					recon_punish = 2
+				end
+				imgui.SameLine()
+				if imgui.Button(u8"Кикнуть") then  
+					select_recon = 1
+					recon_punish = 3
+				end
             end
         imgui.End()
 
         if right_recon[0] then  
-            imgui.SetNextWindowPos(imgui.ImVec2(sw - 200, sh - 200), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
-            imgui.SetNextWindowSize(imgui.ImVec2(400, 600), imgui.Cond.FirstUseEver)
+            imgui.SetNextWindowPos(imgui.ImVec2(sw - 200, sh - 310), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
+            imgui.SetNextWindowSize(imgui.ImVec2(350, 550), imgui.Cond.FirstUseEver)
 
-            imgui.Begin(u8"Информация об игроке", nil, imgui.WindowFlags.NoResize + imgui.WindowFlags.NoCollapse)
+            imgui.Begin(u8"Информация об игроке", nil, imgui.WindowFlags.NoResize + imgui.WindowFlags.NoCollapse + imgui.WindowFlags.MenuBar)
 				if accept_load_recon then
 					if not sampIsPlayerConnected(recon_id) then 
 						recon_nick = '-'
 					else
 						recon_nick = sampGetPlayerNickname(recon_id)
-					end
-					imgui.Text(u8"Игрок: ")
-					imgui.Text(recon_nick)
-					imgui.SameLine()
-					imgui.Text('[' .. recon_id .. ']')
-					imgui.Separator()
-					for key, v in pairs(info_to_player) do  
-						if key == 1 then  
-							imgui.Text(u8:encode(recon_info[1]) .. " " .. info_to_player[1])
-							mim_addons.BufferingBar(tonumber(info_to_player[1])/100, imgui.ImVec2(imgui.GetWindowWidth()-10, 10), false)
+					end					
+					imgui.BeginMenuBar()
+						if imgui.Button(fa.USER_CHECK) then  
+							select_recon = 0 
+						end  
+						if imgui.Button(fa.BAN) then  
+							select_recon = 1 
 						end
-						if key == 2 and tonumber(info_to_player[2]) ~= 0 then
-							imgui.Text(u8:encode(recon_info[2]) .. " " .. info_to_player[2])
-							mim_addons.BufferingBar(tonumber(info_to_player[2])/100, imgui.ImVec2(imgui.GetWindowWidth()-10, 10), false)
-						end
-						if key == 3 and tonumber(info_to_player[3]) ~= -1 then
-							imgui.Text(u8:encode(recon_info[3]) .. " " .. info_to_player[3])
-							mim_addons.BufferingBar(tonumber(info_to_player[3])/1000, imgui.ImVec2(imgui.GetWindowWidth()-10, 10), false)
-						end
-						if key == 4 then
-							imgui.Text(u8:encode(recon_info[4]) .. " " .. info_to_player[4])
-							local speed, const = string.match(info_to_player[4], "(%d+) / (%d+)")
-							if tonumber(speed) > tonumber(const) then
-								speed = const
+					imgui.EndMenuBar()
+					if select_recon == 0 then
+						imgui.Text(u8"Игрок: ")
+						imgui.Text(recon_nick)
+						imgui.SameLine()
+						imgui.Text('[' .. recon_id .. ']')
+						imgui.Separator()
+						for key, v in pairs(info_to_player) do  
+							if key == 1 then  
+								imgui.Text(u8:encode(recon_info[1]) .. " " .. info_to_player[1])
+								mim_addons.BufferingBar(tonumber(info_to_player[1])/100, imgui.ImVec2(imgui.GetWindowWidth()-10, 10), false)
 							end
-							mim_addons.BufferingBar((tonumber(speed)*100/tonumber(const))/100, imgui.ImVec2(imgui.GetWindowWidth()-10, 10), false)
+							if key == 2 and tonumber(info_to_player[2]) ~= 0 then
+								imgui.Text(u8:encode(recon_info[2]) .. " " .. info_to_player[2])
+								mim_addons.BufferingBar(tonumber(info_to_player[2])/100, imgui.ImVec2(imgui.GetWindowWidth()-10, 10), false)
+							end
+							if key == 3 and tonumber(info_to_player[3]) ~= -1 then
+								imgui.Text(u8:encode(recon_info[3]) .. " " .. info_to_player[3])
+								mim_addons.BufferingBar(tonumber(info_to_player[3])/1000, imgui.ImVec2(imgui.GetWindowWidth()-10, 10), false)
+							end
+							if key == 4 then
+								imgui.Text(u8:encode(recon_info[4]) .. " " .. info_to_player[4])
+								local speed, const = string.match(info_to_player[4], "(%d+) / (%d+)")
+								if tonumber(speed) > tonumber(const) then
+									speed = const
+								end
+								mim_addons.BufferingBar((tonumber(speed)*100/tonumber(const))/100, imgui.ImVec2(imgui.GetWindowWidth()-10, 10), false)
+							end
+							if key ~= 1 and key ~= 2 and key ~= 3 and key ~= 4 then
+								if key == 11 then  
+									local lvl = string.match(info_to_player[11], "(%d+)")
+									local str_lvl = ''
+									if tonumber(lvl) == 0 then
+										str_lvl = u8'Не имеется.'
+									elseif tonumber(lvl) == 1 then
+										str_lvl = u8'Обычный'
+									elseif tonumber(lvl) == 2 then
+										str_lvl = u8'Премиум'
+									elseif tonumber(lvl) == 3 then
+										str_lvl = u8'Diamond'
+									elseif tonumber(lvl) == 4 then
+										str_lvl = u8'Platinum'
+									elseif tonumber(lvl) == 5 then
+										str_lvl = u8'Personal'
+									end
+									imgui.Text(u8:encode(recon_info[key]) .. " " .. str_lvl)
+								elseif key == 15 then  
+									local chkdrv = string.match(info_to_player[15], '(.+)')
+									if chkdrv == 'DISABLED' then  
+										imgui.Text(u8:encode(recon_info[key]) .. " " .. u8'Отключено')
+									elseif chkdrv == 'ENABLED' then
+										imgui.Text(u8:encode(recon_info[key]) .. " " .. u8'Включено')
+									end
+								else 
+									imgui.Text(u8:encode(recon_info[key]) .. " " .. info_to_player[key])
+								end
+							end
 						end
-						if key ~= 1 and key ~= 2 and key ~= 3 and key ~= 4 then
-							imgui.Text(u8:encode(recon_info[key]) .. " " .. info_to_player[key])
-						end
+					elseif select_recon == 1 then  
+						if recon_punish == 0 then  
+							imgui.Text(u8'Выберите нужное действие')
+						end  
+						if recon_punish == 1 then  
+							imgui.Text(u8'Зарегистрированные наказания')
+							for key in pairs(cmd_massive) do  
+								if cmd_massive[key].cmd == "/jail" then  
+									if imgui.Button(u8(cmd_massive[key].reason)) then  
+										if main_access.settings.jail then
+											sampSendChat(cmd_massive[key].cmd .. " " .. recon_id .. " " .. cmd_massive[key].time .. " " .. cmd_massive[key].reason)
+										else 
+											sampSendChat('/a ' .. cmd_massive[key].cmd .. " " .. recon_id .. " " .. cmd_massive[key].time .. " " .. cmd_massive[key].reason)
+										end
+									end 
+								end 
+							end
+						end 
+						if recon_punish == 2 then  
+							imgui.Text(u8'Зарегистрированные наказания')
+							for key in pairs(cmd_massive) do  
+								if cmd_massive[key].cmd == "/ban" or cmd_massive[key].cmd == '/iban' then  
+									if imgui.Button(u8(cmd_massive[key].reason)) then  
+										if main_access.settings.ban then
+											sampSendChat("/ans " .. recon_id .. " Уважаемый игрок, вы нарушали правила сервера, и если вы..")
+											sampSendChat("/ans " .. recon_id .. " ..не согласны с наказанием, напишите жалобу на форум https://forumrds.ru")
+											sampSendChat(cmd_massive[key].cmd .. " " .. recon_id .. " " .. cmd_massive[key].time .. " " .. cmd_massive[key].reason)
+										else 
+											sampSendChat('/a ' .. cmd_massive[key].cmd .. " " .. recon_id .. " " .. cmd_massive[key].time .. " " .. cmd_massive[key].reason)
+										end
+										recon_id = -1
+									end 
+								end 
+							end
+						end 
+						if recon_punish == 3 then  
+							imgui.Text(u8'Зарегистрированные наказания')
+							for key in pairs(cmd_massive) do  
+								if cmd_massive[key].cmd == "/kick" then  
+									if imgui.Button(u8(cmd_massive[key].reason)) then  
+										sampSendChat(cmd_massive[key].cmd .. " " .. recon_id .. " " .. cmd_massive[key].reason)
+										recon_id = -1
+									end 
+								end 
+							end
+						end 
 					end
 				else 
 					imgui.Text(u8'Загрузка...')
@@ -918,6 +1024,7 @@ local MainWindowAT = imgui.OnFrame(
 						config.settings.render_date = elements.boolean.render_date[0]
 						save()  
 					end
+					plother.ActivateWH()
 				end
 				if elements.imgui.menu_selectable[0] == 2 then
 					imgui.Text(u8(textToMenuSelectableAutoMute))
@@ -1539,7 +1646,7 @@ function showFlood_ImGUI()
 			sampSendChat("/mess 14 Займите водительские места, и продолжайте дрифтить, наши любимые :3")
 			sampSendChat("/delcarall ")
 			sampSendChat("/spawncars 15 ")
-			showNotification("Респавн т/с начался")
+			toast.Show(u8"Респавн т/с начался", toast.TYPE.INFO, 5)
 			
 		end
 	    if imgui.Button(u8'Квесты') then
