@@ -63,8 +63,8 @@ function downloadFile(url, path)
 	end
 end
 
-local version_control = 7
-local version_text = '2.1'
+local version_control = 8
+local version_text = '2.2'
 -- ## Контролирование версий AT. Скачивание, ссылки и директории. ## --
 
 -- ## Система конфига и переменных VARIABLE ## --
@@ -114,6 +114,8 @@ local elements = {
 		selectable = 0,
         stream = new.char[65536](),
         input_word = new.char[500](),
+		bt_size = imgui.ImVec2(220,50),
+		bt_size_recon = imgui.ImVec2(150,50)
     },
     boolean = {
 		adminforms = new.bool(config.settings.adminforms),
@@ -165,6 +167,7 @@ imgui.OnInitialize(function()
 	imgui.GetIO().Fonts:Clear()
 	imgui.GetIO().Fonts:AddFontFromFileTTF(getWorkingDirectory() .. '/lib/mimgui/trebucbd.ttf', 24.0, _, glyph_ranges)
 	fa.Init(24)
+	imgui.GetIO().IniFilename = nil
 end)
 
 local sw, sh = getScreenResolution()
@@ -440,13 +443,19 @@ function cmd_u(arg)
 end  
 
 function cmd_uu(arg)
-    sampSendChat("/unmute " .. arg)
-    sampSendChat("/ans " .. arg .. " Извиняемся за ошибку, наказание снято. Приятной игры")
+    lua_thread.create(function()
+        sampSendChat("/unmute " .. arg)
+        
+        sampSendChat("/ans " .. arg .. " Извиняемся за ошибку, наказание снято. Приятной игры")
+    end)
 end
 
 function cmd_uj(arg)
-    sampSendChat("/unjail " .. arg)
-    sampSendChat("/ans " .. arg .. " Извиняемся за ошибку, наказание снято. Приятной игры")
+    lua_thread.create(function()
+        sampSendChat("/unjail " .. arg)
+        
+        sampSendChat("/ans " .. arg .. " Извиняемся за ошибку, наказание снято. Приятной игры")
+    end)
 end
 
 function cmd_stw(arg)
@@ -458,8 +467,10 @@ function cmd_as(arg)
 end
 
 function cmd_ru(arg)
-	sampSendChat("/unrmute " .. arg)
-	sampSendChat("/ans " .. arg .. " Извиняемся за ошибку, наказание снято. Приятной игры.")
+    lua_thread.create(function()
+	    sampSendChat("/unrmute " .. arg)
+	    sampSendChat("/ans " .. arg .. " Извиняемся за ошибку, наказание снято. Приятной игры.")
+    end)
 end
 -- ## Блок функций к вспомогательным командам ## --
 
@@ -628,34 +639,34 @@ end
 -- ## Ивент, отвечающий за диалоги. В частности, здесь полностью прописан захват доступов от команд.
 function sampev.onShowDialog(id, style, title, button1, button2, text)
 	if title:find(atlibs.getMyNick()) and id == 8991 then  
-			lua_thread.create(function()
-			text = atlibs.textSplit(text, '\n')
-			newtext = nil 
-			for i, v in ipairs(text) do  
-				if v:find('Все виды банов') and v:find('Имеется') then  
-					main_access.settings.ban = true
-					inicfg.save(main_access, access_file)
-				elseif v:find('Выдачу мута') and v:find('Имеется') then  
-					main_access.settings.mute = true
-					inicfg.save(main_access, access_file)
-				elseif v:find('Выдачу тюрьмы') and v:find('Имеется') then  
-					main_access.settings.jail = true
-					inicfg.save(main_access, access_file)
-				end
-				if v:find('Все виды банов') and v:find('Отсутствует') then  
-					main_access.settings.ban = false
-					inicfg.save(main_access, access_file)
-				elseif v:find('Выдачу мута') and v:find('Отсутствует') then  
-					main_access.settings.mute = false
-					inicfg.save(main_access, access_file)
-				elseif v:find('Выдачу тюрьмы') and v:find('Отсутствует') then  
-					main_access.settings.jail = false
-					inicfg.save(main_access, access_file)
-				end
+		lua_thread.create(function()
+		text = atlibs.textSplit(text, '\n')
+		newtext = nil 
+		for i, v in ipairs(text) do  
+			if v:find('Все виды банов') and v:find('Имеется') then  
+				main_access.settings.ban = true
+				inicfg.save(main_access, access_file)
+			elseif v:find('Выдачу мута') and v:find('Имеется') then  
+				main_access.settings.mute = true
+				inicfg.save(main_access, access_file)
+			elseif v:find('Выдачу тюрьмы') and v:find('Имеется') then  
+				main_access.settings.jail = true
+				inicfg.save(main_access, access_file)
 			end
-			sampAddChatMessage(tag .. '/access просканирован. Для просмотра своих /access, выключите повторный сканинг в настройках.', -1)
-			wait(1)
-			sampSendDialogResponse(8991, 0, -1)
+			if v:find('Все виды банов') and v:find('Отсутствует') then  
+				main_access.settings.ban = false
+				inicfg.save(main_access, access_file)
+			elseif v:find('Выдачу мута') and v:find('Отсутствует') then  
+				main_access.settings.mute = false
+				inicfg.save(main_access, access_file)
+			elseif v:find('Выдачу тюрьмы') and v:find('Отсутствует') then  
+				main_access.settings.jail = false
+				inicfg.save(main_access, access_file)
+			end
+		end
+		sampAddChatMessage(tag .. '/access просканирован. Для просмотра своих /access, выключите повторный сканинг в настройках.', -1)
+		wait(1)
+		sampSendDialogResponse(8991, 0, -1)
 		end)
 	end
 end
@@ -722,40 +733,40 @@ local ReconWindow = imgui.OnFrame(
 
         imgui.Begin("reconmenu", elements.imgui.recon_window, imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoTitleBar + imgui.WindowFlags.AlwaysAutoResize + imgui.WindowFlags.NoResize)
             if control_to_player then  
-                if imgui.Button(u8"Заспавнить") then  
+                if imgui.Button(u8"Заспавнить", elements.imgui.bt_size_recon) then  
                     sampSendChat('/aspawn ' .. recon_id)
                 end
 				imgui.SameLine()
-                if imgui.Button(u8"Обновить") then  
+                if imgui.Button(u8"Обновить", elements.imgui.bt_size_recon) then  
                     -- sampSendClickTextdraw(156)
 					sampSendClickTextdraw(refresh_button_textdraw)
                 end
 				imgui.SameLine()
-                if imgui.Button(u8"Слапнуть") then  
+                if imgui.Button(u8"Слапнуть", elements.imgui.bt_size_recon) then  
                     sampSendChat("/slap " .. recon_id)
                 end
 				imgui.SameLine()
-                if imgui.Button(u8"Заморозить\nРазморозить") then  
+                if imgui.Button(u8"Заморозить\n/Разморозить", imgui.ImVec2(150,60)) then  
                     sampSendChat("/freeze " .. recon_id)
                 end
 				imgui.SameLine()
-                if imgui.Button(u8"Выйти") then
+                if imgui.Button(u8"Выйти", elements.imgui.bt_size_recon) then
                     sampSendChat("/reoff ")
                     control_to_player = false
                     elements.imgui.recon_window[0] = false
                 end
-				imgui.SetCursorPosX(100)
-				if imgui.Button(u8"Посадить") then  
+				imgui.SetCursorPosX(imgui.GetWindowWidth() - 650)
+				if imgui.Button(u8"Посадить", elements.imgui.bt_size_recon) then  
 					select_recon = 1 
 					recon_punish = 1
 				end
 				imgui.SameLine()
-				if imgui.Button(u8"Забанить") then  
+				if imgui.Button(u8"Забанить", elements.imgui.bt_size_recon) then  
 					select_recon = 1
 					recon_punish = 2
 				end
 				imgui.SameLine()
-				if imgui.Button(u8"Кикнуть") then  
+				if imgui.Button(u8"Кикнуть", elements.imgui.bt_size_recon) then  
 					select_recon = 1
 					recon_punish = 3
 				end
@@ -912,37 +923,43 @@ local MainWindowAT = imgui.OnFrame(
 		royalblue()
 
 		imgui.SetNextWindowPos(imgui.ImVec2(sw / 2, sh / 2), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
-		imgui.SetNextWindowSize(imgui.ImVec2(950, 450), imgui.Cond.FirstUseEver)
+		imgui.SetNextWindowSize(imgui.ImVec2(1280, 600), imgui.Cond.FirstUseEver)
 
 		imgui.Begin(fa.SERVER .. ' [AT for Android]', elements.imgui.main_window)
-			imgui.BeginChild('##MenuSelectable', imgui.ImVec2(200, 400), true)
-				if imgui.Button(fa.HOUSE .. u8" Дом. страница") then  
+			imgui.BeginChild('##MenuSelectable', imgui.ImVec2(250, 570), true)
+				if imgui.Button(fa.HOUSE .. u8" Дом. страница", elements.imgui.bt_size) then  
 					elements.imgui.menu_selectable[0] = 0
 				end
-				if imgui.Button(fa.USER_GEAR .. u8' Осн. функции') then
+				if imgui.Button(fa.USER_GEAR .. u8' Осн. функции', elements.imgui.bt_size) then
 					elements.imgui.menu_selectable[0] = 1
 				end
-				if imgui.Button(fa.BOOK .. u8' Автомут') then  
+				if imgui.Button(fa.CROSSHAIRS .. u8' Трейсер пуль', elements.imgui.bt_size) then
+					elements.imgui.menu_selectable[0] = 8
+				end
+				if imgui.Button(fa.BOOK .. u8' Автомут', elements.imgui.bt_size) then  
 					elements.imgui.menu_selectable[0] = 2
 				end  
-				if imgui.Button(fa.LIST_OL .. u8' КМД/Наказания') then
+				if imgui.Button(fa.LIST_OL .. u8' КМД/Наказания', elements.imgui.bt_size) then
 					elements.imgui.menu_selectable[0] = 3 
 				end
-				if imgui.Button(fa.TABLE_LIST .. u8' Флуды') then  
+				if imgui.Button(fa.TABLE_LIST .. u8' Флуды', elements.imgui.bt_size) then  
 					elements.imgui.menu_selectable[0] = 4 
 				end
-				if imgui.Button(fa.LIST .. u8' Биндер /ans') then  
+				if imgui.Button(fa.LIST .. u8' Биндер /ans', elements.imgui.bt_size) then  
 					elements.imgui.menu_selectable[0] = 5
 				end
-				if imgui.Button(fa.USERS .. u8' Мероприятия') then  
+				if imgui.Button(fa.USERS .. u8' Мероприятия', elements.imgui.bt_size) then  
 					elements.imgui.menu_selectable[0] = 6
 				end 
-				if imgui.Button(fa.GEARS .. u8' Настройки') then
+				if imgui.Button(fa.GEARS .. u8' Настройки', elements.imgui.bt_size) then
 					elements.imgui.menu_selectable[0] = 7
 				end
 			imgui.EndChild() 
 			imgui.SameLine()
-			imgui.BeginChild('##MainSelectable', imgui.ImVec2(720, 400), true)
+			imgui.BeginChild('##MainSelectable', imgui.ImVec2(1000, 570), true)
+				if elements.imgui.menu_selectable[0] == 8 then
+					plother.ActivateBulletTrack()
+				end
 				if elements.imgui.menu_selectable[0] == 0 then
 					imgui.TextWrapped(u8(helloText))
 				end
