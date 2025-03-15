@@ -812,7 +812,7 @@ function EXPORTS.ActiveAutoMute()
 end
 
 function EXPORTS.ReadWriteAM()
-    imgui.BeginChild('##MenuRWAMF', imgui.ImVec2(200, 310), true)
+    imgui.BeginChild('##MenuRWAMF', imgui.ImVec2(200, 430), true)
         if imgui.Button(u8"Мат") then  
             elements.imgui.selectable = 1
         end  
@@ -830,7 +830,7 @@ function EXPORTS.ReadWriteAM()
         end
     imgui.EndChild()
     imgui.SameLine()
-    imgui.BeginChild('##WindowRWAMF', imgui.ImVec2(500, 310), true)
+    imgui.BeginChild('##WindowRWAMF', imgui.ImVec2(730, 430), true)
         if elements.imgui.selectable == 0 then  
             imgui.TextWrapped(u8"Редактируйте файлы аккуратно. Каждое Вами введенное слово будет фиксироваться в файле при сохранении.")
             imgui.TextWrapped(u8"На данный момент ни один файл не приведен в чтение.")
