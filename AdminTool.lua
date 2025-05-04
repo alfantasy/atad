@@ -63,8 +63,8 @@ function downloadFile(url, path)
 	end
 end
 
-local version_control = 8
-local version_text = '2.2'
+local version_control = 9
+local version_text = '2.2.1'
 -- ## Контролирование версий AT. Скачивание, ссылки и директории. ## --
 
 -- ## Система конфига и переменных VARIABLE ## --

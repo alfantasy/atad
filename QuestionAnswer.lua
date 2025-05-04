@@ -384,7 +384,7 @@ local ReportsAT = imgui.OnFrame(
                         sampSendDialogResponse(2350, 1, 0)
                         wait(200)
                         if elements.prefix_answer[0] then  
-                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Начал(а) работу по вашей жалобе! ' .. u8:decode(u8(config.main.prefix_for_answer)))
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Начал(а) работу по вашей жалобе! ' .. u8:decode(config.main.prefix_for_answer))
                         else 
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Начал(а) работу по вашей жалобе! ')	
                         end
@@ -405,7 +405,7 @@ local ReportsAT = imgui.OnFrame(
                         sampSendDialogResponse(2350, 1, 0)
                         wait(200)
                         if elements.prefix_answer[0] then  
-                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Данный игрок наказан! ' .. u8:decode(u8(config.main.prefix_for_answer)))	
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Данный игрок наказан! ' .. u8:decode(config.main.prefix_for_answer))
                         else 
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Данный игрок наказан! ')	
                         end
@@ -422,7 +422,7 @@ local ReportsAT = imgui.OnFrame(
                         sampSendDialogResponse(2350, 1, 0)
                         wait(200)
                         if elements.prefix_answer[0] then  
-                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Уточните ID нарушителя/читера в /report ' .. u8:decode(u8(config.main.prefix_for_answer)))
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Уточните ID нарушителя/читера в /report ' .. u8:decode(config.main.prefix_for_answer))
                         else 
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Уточните ID нарушителя/читера в /report ')	
                         end
@@ -438,7 +438,7 @@ local ReportsAT = imgui.OnFrame(
                         sampSendDialogResponse(2350, 1, 0)
                         wait(200)
                         if elements.prefix_answer[0] then  
-                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Уточните вашу жалобу/вопрос ' .. u8:decode(u8(config.main.prefix_for_answer)))	
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Уточните вашу жалобу/вопрос ' .. u8:decode(config.main.prefix_for_answer))
                         else 
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Уточните вашу жалобу/вопрос ')	
                         end
@@ -540,7 +540,7 @@ local ReportsAT = imgui.OnFrame(
                         sampSendDialogResponse(2350, 1, 0)
                         wait(200)
                         if elements.prefix_answer[0] then  
-                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Передам ваш репорт! '.. u8:decode(u8(config.main.prefix_for_answer)))	
+                            sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Передам ваш репорт! '.. u8:decode(config.main.prefix_for_answer))
                         else 
                             sampSendDialogResponse(2351, 1, 0, '{FFFFFF} Передам ваш репорт! ')	
                         end
@@ -564,7 +564,7 @@ local ReportsAT = imgui.OnFrame(
                     config.main.prefix_answer = elements.prefix_answer[0]
                     save()
                 end; Tooltip("Автоматически при ответе через кнопочки будет желать то, что вы зарегистрируете")
-                imgui.StrCopy(elements.prefix_for_answer, u8(config.main.prefix_for_answer))
+                imgui.StrCopy(elements.prefix_for_answer, config.main.prefix_for_answer)
                 if imgui.InputText(u8'Ввод текста', elements.prefix_for_answer, ffi.sizeof(elements.prefix_for_answer)) then  
                     config.main.prefix_for_answer = ffi.string(elements.prefix_for_answer)
                     save()
@@ -577,7 +577,7 @@ local ReportsAT = imgui.OnFrame(
                         sampSendDialogResponse(2350, 1, 0)
                         wait(200)
                         if elements.prefix_answer[0] then  
-                            local settext = '{FFFFFF}' .. ffi.string(elements.answer) .. ' ' .. color() .. u8(config.main.prefix_for_answer)
+                            local settext = '{FFFFFF}' .. ffi.string(elements.answer) .. ' ' .. color() .. config.main.prefix_for_answer
                             sampSendDialogResponse(2351, 1, 0, u8:decode(settext))	
                         else
                             local settext = '{FFFFFF}' .. ffi.string(elements.answer)
